@@ -5,7 +5,7 @@ Setup: git init + 初始提交（hik-sdk.py + docs/）后逐任务执行。
 
 - [x] Task 1: 项目脚手架与配置模块
 - [x] Task 2: 存储模块
-- [ ] Task 3: 采样器
+- [x] Task 3: 采样器
 - [ ] Task 4: 水面分割模块
 - [ ] Task 5: 视角配准模块
 - [ ] Task 6: ROI 重建模块
@@ -23,3 +23,5 @@ Task 1: minor (deferred): config.py write_text/read_text 未指定 encoding=utf-
 Task 2: fix round 1/5 (1 addressed, 0 open — save_labeled_sample 列值错位; commits e59f1b9..6c5cfd8)
 Task 2: complete (commits d09eca2..6c5cfd8, review clean)
 Task 2: minor (deferred): purge 测试日期敏感性（窗口已关闭）；上中位数实现；连接无锁；labeled_samples 断言用 startswith
+Task 3: complete (commits 6c5cfd8..423438b, review clean)
+Task 3: minor (deferred): sleep间隔逻辑未断言；body透传未断言；RuntimeError路径无测试；ListFrameSampler空列表ZeroDivisionError
