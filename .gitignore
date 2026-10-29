@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+data/
+archive/
+config/cameras/*.json
+!config/cameras/.gitkeep
+frames_preview/
+videos/
