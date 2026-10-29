@@ -57,7 +57,7 @@ class OnnxWaterSegmenter:
         if not keep.any():
             mh, mw = proto.shape[1:]
             return np.zeros((mh, mw), dtype=np.uint8)
-        coeffs = coeffs[:, keep]
-        mask = np.einsum("kn,kmn->mn", coeffs.T, proto)
+        coeffs = coeffs[:, keep]  # (32, K)：32 个原型通道 × K 个过阈检测实例
+        mask = np.einsum("kd,kmn->mn", coeffs, proto)
         mask = (1 / (1 + np.exp(-mask)) > 0.5).astype(np.uint8) * 255
         return mask
