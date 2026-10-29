@@ -1,0 +1,93 @@
+import logging
+import time
+from datetime import datetime
+
+from outlet_detect.rois import build_rois
+from outlet_detect.rule_engine import compute_features, score, verdict
+
+log = logging.getLogger(__name__)
+
+class Pipeline:
+    def __init__(self, config, sampler, segmenter, aligner, cnn, vlm,
+                 storage, state_machine, alerter):
+        self.config = config
+        self.sampler = sampler
+        self.segmenter = segmenter
+        self.aligner = aligner
+        self.cnn = cnn
+        self.vlm = vlm
+        self.storage = storage
+        self.sm = state_machine
+        self.alerter = alerter
+
+    def run_once(self, now_ts=None):
+        t0 = time.time()
+        ts_epoch = now_ts if now_ts is not None else time.time()
+        ts = datetime.fromtimestamp(ts_epoch).isoformat(timespec="seconds")
+        cid = self.config.camera_id
+        feats, frames, vlm_json, cnn_prob = {}, None, None, None
+        status = "sample_error"
+
+        try:
+            frames = self.sampler.capture(cid, n=5, body=self.config.hik_body)
+            mask = self.segmenter.segment(frames[0])
+        except Exception as e:
+            log.exception("%s 采样/分割失败: %s", cid, e)
+            self.storage.record_sample(cid, ts, feats, "error", None, None,
+                                       status, [], int((time.time() - t0) * 1000))
+            return status
+
+        ar = self.aligner.align(frames[0])
+        if not ar.ok or not ar.in_frame:
+            self.sm.suspend()
+            self.storage.record_sample(cid, ts, feats, "view_error", None, None,
+                                       "view_error", [], int((time.time() - t0) * 1000))
+            log.warning("%s 视角异常(conf=%.2f)，暂停判定", cid, ar.confidence)
+            return "view_error"
+        if self.sm.suspended:
+            log.info("%s 视角恢复", cid)
+            self.sm.resume()
+
+        rois = build_rois(mask, ar.mapped_point)
+        baseline = self.storage.get_baseline_darkness(cid, hour=int(ts[11:13]), before_ts=ts)
+        feats = compute_features(frames, rois, baseline)
+        s = score(feats)
+        v = verdict(s, self.config.score_low, self.config.score_high)
+
+        suspect = (v == "suspect")
+        if v == "gray":
+            if self.cnn.enabled:
+                from outlet_detect.cnn_classifier import crop_for_cnn
+                cnn_prob = self.cnn.classify(crop_for_cnn(frames[0], rois))
+                suspect = cnn_prob >= 0.5
+            else:
+                suspect = True  # 冷启动：灰色直接送 VLM
+
+        vlm_result = None
+        if suspect and self.vlm is not None:
+            try:
+                vlm_result = self.vlm.judge(frames[0], frames[0], frames[-1], feats)
+                vlm_json = vlm_result.__dict__ and str(vlm_result.__dict__)
+                self.storage.save_labeled_sample(
+                    cid, ts, "", "discharge" if vlm_result.is_discharge else "normal",
+                    "vlm", vlm_result.reason)
+                suspect = vlm_result.is_discharge
+            except Exception as e:
+                log.exception("%s VLM 调用失败，按规则结果处理: %s", cid, e)
+
+        keep = suspect
+        frame_paths = self.storage.archive_frames(cid, ts.replace(":", "-"), frames, keep)
+        ev = self.sm.update(suspect, ts_epoch)
+        status = "normal"
+        if ev is not None:
+            from outlet_detect.alerter import AlertPayload
+            self.alerter.alert(AlertPayload(
+                camera_id=cid, ts=ts, frame_paths=frame_paths,
+                vlm_reason=vlm_result.reason if vlm_result else "",
+                features=feats, consecutive=ev.consecutive))
+            status = "alert"
+        elif suspect:
+            status = "suspect"
+        self.storage.record_sample(cid, ts, feats, v, cnn_prob, vlm_json,
+                                   status, frame_paths, int((time.time() - t0) * 1000))
+        return status
