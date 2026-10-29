@@ -4,7 +4,7 @@ Setup: git init + 初始提交（hik-sdk.py + docs/）后逐任务执行。
 计划共 15 个任务。工作目录即主仓库 main 分支（新项目，无隔离需求，用户计划本身含 git init）。
 
 - [x] Task 1: 项目脚手架与配置模块
-- [ ] Task 2: 存储模块
+- [x] Task 2: 存储模块
 - [ ] Task 3: 采样器
 - [ ] Task 4: 水面分割模块
 - [ ] Task 5: 视角配准模块
@@ -20,3 +20,6 @@ Setup: git init + 初始提交（hik-sdk.py + docs/）后逐任务执行。
 - [ ] Task 15: 离线回放器
 Task 1: complete (commits 6ffe5f0..d09eca2, review clean)
 Task 1: minor (deferred): config.py write_text/read_text 未指定 encoding=utf-8（源自简报，Windows cp936 风险）；未使用 import 残留
+Task 2: fix round 1/5 (1 addressed, 0 open — save_labeled_sample 列值错位; commits e59f1b9..6c5cfd8)
+Task 2: complete (commits d09eca2..6c5cfd8, review clean)
+Task 2: minor (deferred): purge 测试日期敏感性（窗口已关闭）；上中位数实现；连接无锁；labeled_samples 断言用 startswith
