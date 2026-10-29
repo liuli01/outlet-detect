@@ -69,7 +69,7 @@ class Storage:
         self.conn.execute(
             "INSERT INTO labeled_samples (ts,camera_id,frame_path,label,source,reason)"
             " VALUES (?,?,?,?,?,?)",
-            (camera_id, ts, frame_path, label, source, reason))
+            (ts, camera_id, frame_path, label, source, reason))
         self.conn.commit()
 
     def purge_old_frames(self, days=7):

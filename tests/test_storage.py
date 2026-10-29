@@ -21,6 +21,9 @@ def test_archive_and_labeled(tmp_path):
     assert len(paths) == 1 and (tmp_path / "arc").exists()
     s.save_labeled_sample("cam01", "2026-10-28T10:00:00", paths[0],
                           "discharge", "vlm", "排口发黑")
+    row = s.conn.execute(
+        "SELECT camera_id, ts FROM labeled_samples").fetchone()
+    assert row[0] == "cam01" and row[1].startswith("2026-10-28")
     # 再存一条正常帧（keep=False），purge 应只删正常帧
     tmp_paths = s.archive_frames("cam01", "2026-10-28T11-00-00", [make_frame()], keep=False)
     deleted = s.purge_old_frames(days=0)
