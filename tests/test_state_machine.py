@@ -33,3 +33,12 @@ def test_suspend_resume():
     sm.resume()
     sm.update(True, 300)
     assert sm.state == "watching"
+
+def test_cooldown_state_survives_normal_frame():
+    sm = DischargeStateMachine("cam01")
+    for t in (0, 300, 600):
+        sm.update(True, t)                # 三连告警 → cooldown
+    sm.update(False, 900)                 # 冷却期内正常帧，计数清零
+    assert sm.state == "cooldown"         # 但状态仍为冷却
+    sm.update(False, 600 + 1801)          # 冷却期过后
+    assert sm.state == "normal"
