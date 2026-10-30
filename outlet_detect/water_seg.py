@@ -66,12 +66,16 @@ class HttpWaterSegmenter:
     """已部署水面分割 HTTP 服务的适配器（/infer，多边形响应栅格化）。"""
     def __init__(self, endpoint="http://127.0.0.1:8005/infer",
                  engine_id="river/20261029_152643",
-                 confidence_threshold=0.25, timeout=30.0, post_fn=None):
+                 confidence_threshold=0.25, timeout=30.0, post_fn=None,
+                 erode_px=0):
         self.endpoint = endpoint
         self.engine_id = engine_id
         self.confidence_threshold = confidence_threshold
         self.timeout = timeout
         self.post_fn = post_fn or self._default_post
+        # 分割服务的 confidence_threshold 是 detection 级开关，无法修边缘误检；
+        # 用形态学腐蚀收缩 mask 边缘，削掉岸边/护坡的误判像素。0 = 不腐蚀。
+        self.erode_px = erode_px
 
     @staticmethod
     def _default_post(url, payload, timeout):
@@ -98,4 +102,8 @@ class HttpWaterSegmenter:
             if len(pts) >= 3:
                 poly = np.array([[p["x"], p["y"]] for p in pts], dtype=np.int32)
                 cv2.fillPoly(mask, [poly], 255)
+        if self.erode_px > 0 and mask.any():
+            k = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE, (2 * self.erode_px + 1,) * 2)
+            mask = cv2.erode(mask, k)
         return mask
