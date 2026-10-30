@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 
 CONFIG_DIR = Path("config/cameras")
@@ -16,6 +16,9 @@ class CameraConfig:
     vlm_api_key: str = ""
     vlm_model: str = ""
     vlm_envelope: bool = False  # True=公司网关包装格式 {code,data:{choices}}，False=标准OpenAI
+    float_engine_id: str = ""       # 漂浮物引擎；空=关闭漂浮物检测
+    float_confidence: float = 0.6
+    ignore_classes: list = field(default_factory=list)  # 如 ["aeration"]
 
 def _path(camera_id: str) -> Path:
     return CONFIG_DIR / f"{camera_id}.json"
