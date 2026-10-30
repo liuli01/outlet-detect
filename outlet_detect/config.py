@@ -15,6 +15,7 @@ class CameraConfig:
     vlm_base_url: str = ""
     vlm_api_key: str = ""
     vlm_model: str = ""
+    vlm_envelope: bool = False  # True=公司网关包装格式 {code,data:{choices}}，False=标准OpenAI
 
 def _path(camera_id: str) -> Path:
     return CONFIG_DIR / f"{camera_id}.json"

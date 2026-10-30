@@ -32,7 +32,6 @@ OUTFALL_POINTS = {
     "东城河阳光桥球机_1687161142095": (400, 500),       # 左侧黑色水带（排口不明显）
     "创新河春申路河道球机_1687161684788": (1780, 750),  # 圆形井口黑色污水+湍流
     "创新河春申路河道球机_1687161745744": (200, 500),   # 拦污排污物聚集处
-    "微信视频_20260128161856": (700, 120),              # 墙根水流
     "普惠中心河五星路球机_1687161282421": (1280, 720),  # 排口不明显，取中心
     "芦花沟河天庆路球机_1687160641609": (1750, 620),    # 台阶式排水口
     "芦花沟河天庆路球机_1687160680573": (500, 400),     # 白色泡沫水流入口
@@ -54,10 +53,10 @@ class FixedAligner:
         return AlignResult(True, self.point or (w // 2, h // 2), 1.0, True)
 
 
-def run_sample(cid, frames, seg, point=None):
+def run_sample(cid, frames, seg, point=None, vlm=None):
     cfg = CameraConfig(camera_id=cid, outfall_point=(0, 0), reference_frame="", hik_body={})
     pipe = Pipeline(
-        cfg, ListFrameSampler(frames), seg, FixedAligner(point), CNNClassifier(None), None,
+        cfg, ListFrameSampler(frames), seg, FixedAligner(point), CNNClassifier(None), vlm,
         Storage("data/validate.db", "data/validate_arc"),
         DischargeStateMachine(cid), LogAlerter("data/validate_alerts.log"),
     )
@@ -65,6 +64,21 @@ def run_sample(cid, frames, seg, point=None):
 
 
 def main():
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--vlm", action="store_true",
+                    help="灰色地带送 VLM 终判（读 config/cameras/vlm.json，需先配置）")
+    args = ap.parse_args()
+
+    vlm = None
+    if args.vlm:
+        from outlet_detect.config import load_camera_config
+        from outlet_detect.vlm_judge import VLMJudge
+        vc = load_camera_config("vlm")
+        vlm = VLMJudge(vc.vlm_base_url, vc.vlm_api_key, vc.vlm_model,
+                       envelope=vc.vlm_envelope)
+        print(f"VLM 已接入: {vc.vlm_base_url}")
+
     # 清掉上次运行的数据，避免累积
     for f in ("data/validate.db", "data/validate_alerts.log"):
         if os.path.exists(f):
@@ -82,7 +96,7 @@ def main():
         if len(frames) < 5:
             print(f"{name}: 帧不足 {len(frames)}，跳过")
             continue
-        status = run_sample(cid, frames, seg, OUTFALL_POINTS.get(name))
+        status = run_sample(cid, frames, seg, OUTFALL_POINTS.get(name), vlm=vlm)
         rows.append(("排污", cid, name[:22], status))
 
     photos = sorted(glob.glob("images/无排污/*.jpg") + glob.glob("images/无排污/*.jpeg"))
@@ -92,7 +106,7 @@ def main():
         if f is None:
             print(f"{p} 读不了，跳过")
             continue
-        status = run_sample(cid, [f] * 5, seg)  # 静止序列：波动=0
+        status = run_sample(cid, [f] * 5, seg, vlm=vlm)  # 静止序列：波动=0
         rows.append(("无排污", cid, os.path.basename(p), status))
 
     con = sqlite3.connect("data/validate.db")
