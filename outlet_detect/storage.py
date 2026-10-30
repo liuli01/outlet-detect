@@ -54,6 +54,14 @@ class Storage:
             paths.append(str(p))
         return paths
 
+    def save_snapshot(self, camera_id, ts, frame, tag):
+        """标注图/快照存 archive_root/<cid>/<date>/<ts>_<tag>.jpg，返回路径字符串。"""
+        d = self.archive_root / camera_id / ts[:10]
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / f"{ts.replace(':', '-')}_{tag}.jpg"
+        cv2.imwrite(str(p), frame)
+        return str(p)
+
     def get_baseline_darkness(self, camera_id, hour, before_ts, days=7):
         start = (datetime.fromisoformat(before_ts) - timedelta(days=days)).isoformat()
         rows = self.conn.execute(

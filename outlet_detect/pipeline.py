@@ -12,7 +12,8 @@ log = logging.getLogger(__name__)
 
 class Pipeline:
     def __init__(self, config, sampler, segmenter, aligner, cnn, vlm,
-                 storage, state_machine, alerter):
+                 storage, state_machine, alerter,
+                 float_detector=None, float_sm=None, reporter=None):
         self.config = config
         self.sampler = sampler
         self.segmenter = segmenter
@@ -22,6 +23,9 @@ class Pipeline:
         self.storage = storage
         self.sm = state_machine
         self.alerter = alerter
+        self.float_detector = float_detector
+        self.float_sm = float_sm
+        self.reporter = reporter
         self._prev_frame = None
 
     def run_once(self, now_ts=None):
@@ -34,6 +38,16 @@ class Pipeline:
 
         try:
             frames = self.sampler.capture(cid, n=5, body=self.config.hik_body)
+            # 漂浮物检测（帧1，独立于排污主线；失败不影响排污）
+            if self.float_detector is not None and self.float_detector.enabled:
+                try:
+                    dets = self.float_detector.detect(frames[0])
+                except Exception as e:
+                    log.warning("%s 漂浮物检测失败: %s", cid, e)
+                else:
+                    fev = self.float_sm.update(bool(dets), ts_epoch)
+                    if fev is not None:
+                        self._report_float(cid, ts, frames[0], dets)
             mask = self.segmenter.segment(frames[0])
             if mask.sum() == 0:
                 log.warning("%s 分割结果无水面，按采样失败处理", cid)
@@ -119,6 +133,18 @@ class Pipeline:
                     camera_id=cid, ts=ts, frame_paths=frame_paths,
                     vlm_reason=vlm_result.reason if vlm_result else "",
                     features=feats, consecutive=ev.consecutive))
+                if self.reporter is not None:
+                    try:
+                        from outlet_detect.reporter import (ReportEvent,
+                                                            annotate_discharge)
+                        ann = annotate_discharge(frames[0], rois, s)
+                        out_path = self.storage.save_snapshot(cid, ts, ann, "alert")
+                        conf = vlm_result.confidence if vlm_result else s
+                        self.reporter.report(ReportEvent(
+                            index_code=cid, input_path=frame_paths[0],
+                            output_path=out_path, result_b=conf, result_c=conf))
+                    except Exception as e:
+                        log.exception("%s 排污上报失败: %s", cid, e)
                 status = "alert"
             elif suspect:
                 status = "suspect"
@@ -130,3 +156,19 @@ class Pipeline:
             self.storage.record_sample(cid, ts, feats, "error", None, None,
                                        "sample_error", [], int((time.time() - t0) * 1000))
             return "sample_error"
+
+    def _report_float(self, cid, ts, frame, dets):
+        from outlet_detect.reporter import ReportEvent, annotate_float
+        conf = max(d.confidence for d in dets)
+        log.warning("%s 漂浮物告警（%d 个，最高置信 %.2f）", cid, len(dets), conf)
+        if self.reporter is None:
+            return
+        try:
+            ann = annotate_float(frame, dets)
+            out_path = self.storage.save_snapshot(cid, ts, ann, "float")
+            raw_path = self.storage.save_snapshot(cid, ts, frame, "float_raw")
+            self.reporter.report(ReportEvent(
+                index_code=cid, input_path=raw_path, output_path=out_path,
+                result_a=conf))
+        except Exception as e:
+            log.exception("%s 漂浮物上报失败: %s", cid, e)
