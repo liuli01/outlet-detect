@@ -1924,3 +1924,16 @@ git add -A && git commit -m "feat: 离线回放器与真实视频冒烟验证"
 4. **推送渠道**：替换 `LogAlerter` 或在其 `alert()` 里追加推送调用
 5. **阈值调优**：用回放器跑 videos/ 全部样本，人工标注排污时段，对比 `data/replay.db` 中 score 分布调整权重与双阈值
 6. **VLM 定位重建 ROI（spec 第 8 节第 2 层的增强）**：视角异常持续 1 小时以上且画面内有足够水面时，调 VLM grounding 定位排口点重建 ROI。依赖公司 VLM 的 grounding 能力实测，待在线运行稳定后作为增量任务实现
+
+---
+
+## 最终审查后续任务清单（2026-10-30 全分支审查产出）
+
+合入后建议的增量任务（非阻塞，按优先级）：
+
+1. **purge_old_frames 接调度**：设计 §9 要求正常帧 7 天滚动删除，实现已存在但无人调用——在 run_loop 加每日一次调用或文档化运维步骤
+2. **pipeline 路径测试补齐**：gray 分流、VLM 降级、sample_error 记录、align 异常四条路径无测试，上线试运行前补齐
+3. **mask_coverage 接线**：设计 §3.2 排口区水面覆盖率过低降置信，函数已有但未接入 pipeline，回放调优期一并校准
+4. **标定工具分割器解耦**：calibrate_tool 硬编码 OnnxWaterSegmenter，生产已切 HTTP 服务，支持注入 HttpWaterSegmenter
+5. **设计 §12 错误处理落地**：海康抓图失败重试 2 次、连续失败通知、SQLite 写失败降级写日志
+6. **重复代码清理**：base64 编码（vlm_judge/water_seg 各一份）、rule_engine GaussianBlur 重复计算，抽公共 util
