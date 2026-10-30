@@ -108,6 +108,39 @@ def test_float_detector_without_float_sm_does_not_break_discharge(tmp_path):
     assert det.calls == 0                 # 成对性防护：detect 未被调用
 
 
+def test_float_report_success_recorded(tmp_path):
+    """上报成功后 reports 表落一行 ok=1。"""
+    rep = FakeReporter()
+    pipe = make_pipe(tmp_path, [FloatDetection("bottle", 0.88, (10, 20, 50, 60))],
+                     reporter=rep)
+    pipe.run_once()
+    pipe.run_once()
+    rows = pipe.storage.conn.execute(
+        "SELECT event_type,result_a,output_url,ok,error FROM reports").fetchall()
+    assert len(rows) == 1
+    assert rows[0] == ("float", 0.88, "http://x/out.jpg", 1, "")
+
+
+def test_float_report_failure_recorded(tmp_path):
+    """FakeReporter 抛 ReporterError 时 reports 表落一行 ok=0+error。"""
+    from outlet_detect.reporter import ReporterError
+
+    class BadReporter(FakeReporter):
+        def report(self, ev):
+            raise ReporterError("minio 上传失败: boom")
+
+    pipe = make_pipe(tmp_path, [FloatDetection("bottle", 0.88, (10, 20, 50, 60))],
+                     reporter=BadReporter())
+    pipe.run_once()
+    status = pipe.run_once()  # 上报失败不阻断主线
+    assert status in ("normal", "suspect", "alert")
+    rows = pipe.storage.conn.execute(
+        "SELECT event_type,ok,error FROM reports").fetchall()
+    assert len(rows) == 1
+    assert rows[0][0] == "float" and rows[0][1] == 0
+    assert "boom" in rows[0][2]
+
+
 def test_discharge_alert_reports(tmp_path):
     """排污 alert 时 reporter 收到 result_b=result_c=置信度的事件。"""
     rep = FakeReporter()

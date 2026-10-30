@@ -15,6 +15,20 @@ def test_record_and_baseline(tmp_path):
     baseline = s.get_baseline_darkness("cam01", hour=10, before_ts="2026-10-28T10:00:00", days=7)
     assert baseline == 0.8  # 排除了今天 10:00 之外昨天同时刻的值
 
+def test_record_report(tmp_path):
+    s = Storage(db_path=str(tmp_path / "t.db"), archive_root=str(tmp_path / "arc"))
+    s.record_report("cam01", "2026-10-30T12:00:00", "float", 0.88, 0.0, 0.0,
+                    "http://x/out.jpg", 1, "")
+    s.record_report("cam01", "2026-10-30T12:00:30", "discharge", 0.0, 0.72, 0.72,
+                    "", 0, "minio down")
+    rows = s.conn.execute(
+        "SELECT camera_id,ts,event_type,result_a,result_b,result_c,output_url,ok,error"
+        " FROM reports ORDER BY id").fetchall()
+    assert len(rows) == 2
+    assert rows[0] == ("cam01", "2026-10-30T12:00:00", "float", 0.88, 0.0, 0.0,
+                       "http://x/out.jpg", 1, "")
+    assert rows[1][2] == "discharge" and rows[1][7] == 0 and rows[1][8] == "minio down"
+
 def test_archive_and_labeled(tmp_path):
     s = Storage(db_path=str(tmp_path / "t.db"), archive_root=str(tmp_path / "arc"))
     paths = s.archive_frames("cam01", "2026-10-28T10-00-00", [make_frame()], keep=True)

@@ -20,6 +20,12 @@ CREATE TABLE IF NOT EXISTS labeled_samples (
     ts TEXT, camera_id TEXT, frame_path TEXT,
     label TEXT, source TEXT, reason TEXT
 );
+CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts TEXT, camera_id TEXT, event_type TEXT,
+    result_a REAL, result_b REAL, result_c REAL,
+    output_url TEXT, ok INTEGER, error TEXT
+);
 """
 
 class Storage:
@@ -72,6 +78,15 @@ class Storage:
             return None
         vals = sorted(r[0] for r in rows)
         return vals[len(vals) // 2]  # 中位数
+
+    def record_report(self, camera_id, ts, event_type, result_a, result_b,
+                      result_c, output_url, ok, error):
+        self.conn.execute(
+            "INSERT INTO reports (ts,camera_id,event_type,result_a,result_b,"
+            "result_c,output_url,ok,error) VALUES (?,?,?,?,?,?,?,?,?)",
+            (ts, camera_id, event_type, result_a, result_b, result_c,
+             output_url, ok, error))
+        self.conn.commit()
 
     def save_labeled_sample(self, camera_id, ts, frame_path, label, source, reason):
         self.conn.execute(

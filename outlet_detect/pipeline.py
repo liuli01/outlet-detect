@@ -136,17 +136,24 @@ class Pipeline:
                     vlm_reason=vlm_result.reason if vlm_result else "",
                     features=feats, consecutive=ev.consecutive))
                 if self.reporter is not None:
+                    from outlet_detect.reporter import (ReportEvent,
+                                                        annotate_discharge)
+                    conf = vlm_result.confidence if vlm_result else s
+                    rev = ReportEvent(index_code=cid, input_path=frame_paths[0],
+                                      output_path="", result_b=conf, result_c=conf,
+                                      event_type="discharge")
                     try:
-                        from outlet_detect.reporter import (ReportEvent,
-                                                            annotate_discharge)
                         ann = annotate_discharge(frames[0], rois, s)
-                        out_path = self.storage.save_snapshot(cid, ts, ann, "alert")
-                        conf = vlm_result.confidence if vlm_result else s
-                        self.reporter.report(ReportEvent(
-                            index_code=cid, input_path=frame_paths[0],
-                            output_path=out_path, result_b=conf, result_c=conf))
+                        rev.output_path = self.storage.save_snapshot(cid, ts, ann, "alert")
+                        out_url = self.reporter.report(rev)
+                        self.storage.record_report(cid, ts, "discharge", rev.result_a,
+                                                   rev.result_b, rev.result_c,
+                                                   out_url, 1, "")
                     except Exception as e:
                         log.exception("%s 排污上报失败: %s", cid, e)
+                        self.storage.record_report(cid, ts, "discharge", rev.result_a,
+                                                   rev.result_b, rev.result_c,
+                                                   "", 0, str(e))
                 status = "alert"
             elif suspect:
                 status = "suspect"
@@ -165,12 +172,16 @@ class Pipeline:
         log.warning("%s 漂浮物告警（%d 个，最高置信 %.2f）", cid, len(dets), conf)
         if self.reporter is None:
             return
+        ev = ReportEvent(index_code=cid, input_path="", output_path="",
+                         result_a=conf, event_type="float")
         try:
             ann = annotate_float(frame, dets)
-            out_path = self.storage.save_snapshot(cid, ts, ann, "float")
-            raw_path = self.storage.save_snapshot(cid, ts, frame, "float_raw")
-            self.reporter.report(ReportEvent(
-                index_code=cid, input_path=raw_path, output_path=out_path,
-                result_a=conf))
+            ev.output_path = self.storage.save_snapshot(cid, ts, ann, "float")
+            ev.input_path = self.storage.save_snapshot(cid, ts, frame, "float_raw")
+            out_url = self.reporter.report(ev)
+            self.storage.record_report(cid, ts, "float", ev.result_a, ev.result_b,
+                                       ev.result_c, out_url, 1, "")
         except Exception as e:
             log.exception("%s 漂浮物上报失败: %s", cid, e)
+            self.storage.record_report(cid, ts, "float", ev.result_a, ev.result_b,
+                                       ev.result_c, "", 0, str(e))

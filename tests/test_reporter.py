@@ -48,6 +48,57 @@ def test_report_uploads_and_posts(tmp_path):
     assert data["InputPicture"].startswith("http://223.108.117.18/")
 
 
+def test_object_names_differ_by_event_type_and_second(tmp_path, monkeypatch):
+    """同分钟 float/discharge 事件对象名不同（含事件类型+秒），不互相覆盖。"""
+    import outlet_detect.reporter as reporter_mod
+    from datetime import datetime as real_dt
+
+    class FakeDateTime:
+        sec = 30
+
+        @classmethod
+        def now(cls):
+            return real_dt(2026, 10, 30, 12, 5, cls.sec)
+
+    monkeypatch.setattr(reporter_mod, "datetime", FakeDateTime)
+    rep, _ = make_reporter()
+    img = tmp_path / "a.jpg"
+    import cv2
+    cv2.imwrite(str(img), np.zeros((10, 10, 3), dtype=np.uint8))
+    rep.report(ReportEvent(index_code="cam01", input_path=str(img),
+                           output_path=str(img), event_type="float"))
+    FakeDateTime.sec = 31
+    rep.report(ReportEvent(index_code="cam01", input_path=str(img),
+                           output_path=str(img), event_type="discharge"))
+    names = [u[1] for u in rep.client.uploads]
+    assert names[0] == "cam01-float-2026-10-30-12-05-30.jpg"
+    assert names[2] == "cam01-discharge-2026-10-30-12-05-31.jpg"
+    # 同桶键跨事件不同：float/discharge 各自的 ai-image 键不互相覆盖
+    ai_names = [u[1] for u in rep.client.uploads if u[0] == "ai-image"]
+    assert len(set(ai_names)) == 2
+
+
+def test_object_name_omits_empty_event_type(tmp_path, monkeypatch):
+    """event_type 为空时对象名省略该段。"""
+    import outlet_detect.reporter as reporter_mod
+    from datetime import datetime as real_dt
+
+    class FakeDateTime:
+        @classmethod
+        def now(cls):
+            return real_dt(2026, 10, 30, 12, 5, 30)
+
+    monkeypatch.setattr(reporter_mod, "datetime", FakeDateTime)
+    rep, _ = make_reporter()
+    img = tmp_path / "a.jpg"
+    import cv2
+    cv2.imwrite(str(img), np.zeros((10, 10, 3), dtype=np.uint8))
+    rep.report(ReportEvent(index_code="cam01", input_path=str(img),
+                           output_path=str(img)))
+    names = [u[1] for u in rep.client.uploads]
+    assert names[0] == "cam01-2026-10-30-12-05-30.jpg"
+
+
 def test_report_uses_url_input_directly():
     rep, posts = make_reporter()
     ev = ReportEvent(index_code="cam01", input_path="http://hik/pic.jpg",

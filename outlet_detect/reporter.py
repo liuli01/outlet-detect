@@ -25,6 +25,7 @@ class ReportEvent:
     result_a: float = 0.0   # 漂浮物置信度
     result_b: float = 0.0   # 排污置信度
     result_c: float = 0.0   # 水体颜色置信度（排污时同 result_b）
+    event_type: str = ""    # 事件类型后缀（如 float/discharge），进 minio 对象名防同分钟覆盖
 
 
 def _clamp01(v):
@@ -92,7 +93,9 @@ class MinioReporter:
         return self._upload(bucket, object_name, path)
 
     def report(self, event):
-        object_name = f"{event.index_code}-{datetime.now():%Y-%m-%d-%H-%M}.jpg"
+        # 对象名含事件类型+秒：同分钟触发的漂浮物/排污事件不互相覆盖
+        etype = f"-{event.event_type}" if event.event_type else ""
+        object_name = f"{event.index_code}{etype}-{datetime.now():%Y-%m-%d-%H-%M-%S}.jpg"
         try:
             input_url = self._url_or_upload("input-image", event.input_path, object_name)
             output_url = self._url_or_upload("ai-image", event.output_path, object_name)
