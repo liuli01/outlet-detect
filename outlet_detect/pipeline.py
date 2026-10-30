@@ -39,7 +39,9 @@ class Pipeline:
         try:
             frames = self.sampler.capture(cid, n=5, body=self.config.hik_body)
             # 漂浮物检测（帧1，独立于排污主线；失败不影响排污）
-            if self.float_detector is not None and self.float_detector.enabled:
+            # float_detector/float_sm 须成对传入；缺 float_sm 时整个分支跳过
+            if (self.float_detector is not None and self.float_sm is not None
+                    and self.float_detector.enabled):
                 try:
                     dets = self.float_detector.detect(frames[0])
                 except Exception as e:

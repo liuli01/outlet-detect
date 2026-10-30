@@ -93,6 +93,21 @@ def test_float_failure_does_not_break_discharge(tmp_path):
     assert pipe.run_once() in ("normal", "suspect", "alert")
 
 
+def test_float_detector_without_float_sm_does_not_break_discharge(tmp_path):
+    """只传 float_detector 不传 float_sm：分支整体跳过，排污主线不受影响。"""
+    frames = [np.full((400, 600, 3), 120 + i, dtype=np.uint8) for i in range(5)]
+    cfg = CameraConfig(camera_id="cam1", outfall_point=(0, 0), reference_frame="",
+                       hik_body={})
+    det = FakeFloatDetector([FloatDetection("bottle", 0.9, (10, 20, 50, 60))])
+    pipe = Pipeline(cfg, ListFrameSampler(frames), StubWaterSegmenter(), _Aligner(),
+                    CNNClassifier(None), None,
+                    Storage(str(tmp_path / "t.db"), str(tmp_path / "arc")),
+                    DischargeStateMachine("cam1"), LogAlerter(str(tmp_path / "a.log")),
+                    float_detector=det)   # float_sm 缺省 None
+    assert pipe.run_once() == "normal"
+    assert det.calls == 0                 # 成对性防护：detect 未被调用
+
+
 def test_discharge_alert_reports(tmp_path):
     """排污 alert 时 reporter 收到 result_b=result_c=置信度的事件。"""
     rep = FakeReporter()
