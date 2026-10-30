@@ -33,7 +33,13 @@ class HttpFloatDetector:
     def detect(self, frame):
         import base64
         import cv2
-        b64 = base64.b64encode(cv2.imencode(".jpg", frame)[1]).decode()
+        try:
+            ok, buf = cv2.imencode(".jpg", frame)
+        except Exception as e:
+            raise RuntimeError(f"漂浮物检测帧编码失败: {e}") from e
+        if not ok:
+            raise RuntimeError("漂浮物检测帧编码失败: cv2.imencode 返回 False")
+        b64 = base64.b64encode(buf).decode()
         payload = {"engine_id": self.engine_id, "image": b64,
                    "confidence_threshold": self.confidence}
         try:
@@ -43,10 +49,16 @@ class HttpFloatDetector:
         if not isinstance(data, dict) or "detections" not in data:
             raise RuntimeError(f"漂浮物检测响应格式异常: {str(data)[:200]}")
         out = []
-        for det in data["detections"]:
-            cls = str(det.get("class_name", ""))
-            conf = float(det.get("confidence", 0.0))
-            if cls in self.ignore_classes or conf < self.confidence:
-                continue
-            out.append(FloatDetection(cls, conf, tuple(det.get("bbox", (0, 0, 0, 0)))))
+        try:
+            for det in data["detections"]:
+                cls = str(det.get("class_name", ""))
+                conf = float(det.get("confidence", 0.0))
+                if cls in self.ignore_classes or conf < self.confidence:
+                    continue
+                bbox = det.get("bbox")
+                if bbox is None:
+                    continue  # 缺 bbox 的条目跳过，不伪造全零框
+                out.append(FloatDetection(cls, conf, tuple(bbox)))
+        except Exception as e:
+            raise RuntimeError(f"漂浮物检测响应格式异常: {e}") from e
         return out
