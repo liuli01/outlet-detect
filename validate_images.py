@@ -20,9 +20,8 @@ from outlet_detect.view_align import AlignResult
 from outlet_detect.water_seg import HttpWaterSegmenter
 
 ERODE_PX = 25
-# 黑臭水体在分割模型下置信度极低（0.02~0.22），默认 0.25 会把排污最严重的水面过滤掉
-# → 验证阈值降到 0.05。根本解法是分割模型补黑水样本重训。
-SEG_CONF = 0.05
+# 新分割引擎（river/20261030_132330）已解决黑水盲区（conf 0.87~0.92），用默认阈值即可
+SEG_CONF = 0.25
 
 # 人工标注的排口像素坐标（按 grid_*.jpg 网格估计，原图坐标系）
 OUTFALL_POINTS = {
@@ -34,7 +33,7 @@ OUTFALL_POINTS = {
     "创新河春申路河道球机_1687161745744": (200, 500),   # 拦污排污物聚集处
     "普惠中心河五星路球机_1687161282421": (1280, 720),  # 排口不明显，取中心
     "芦花沟河天庆路球机_1687160641609": (1750, 620),    # 台阶式排水口
-    "芦花沟河天庆路球机_1687160680573": (500, 400),     # 白色泡沫水流入口
+    "芦花沟河天庆路球机_1687160680573": (550, 620),     # 泡沫水流入口下方水面内
 }
 
 
@@ -90,6 +89,8 @@ def main():
     groups = sorted(glob.glob("images/排污/*/"))
     for g in groups:
         name = os.path.basename(os.path.normpath(g))
+        if name == "训练抽取":  # 训练样本目录，非 5 连帧组
+            continue
         cid = "pw" + str(groups.index(g)).zfill(2)
         frames = [imread_cn(f) for f in sorted(glob.glob(g + "*.jpg"))[:5]]
         frames = [f for f in frames if f is not None]

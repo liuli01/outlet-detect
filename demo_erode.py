@@ -13,7 +13,7 @@ b64 = base64.b64encode(cv2.imencode(".jpg", frame)[1]).decode()
 
 data = requests.post(
     "http://127.0.0.1:8005/infer",
-    json={"engine_id": "river/20261029_152643", "image": b64, "confidence_threshold": 0.25},
+    json={"engine_id": "river/20261030_132330", "image": b64, "confidence_threshold": 0.25},
     timeout=60,
 ).json()
 

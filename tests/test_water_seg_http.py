@@ -26,7 +26,7 @@ def test_segment_rasterizes_polygon():
     assert mask[120, 100] == 255
     assert mask[50, 100] == 0  # 多边形外
     # 请求体契约
-    assert calls[0]["engine_id"] == "river/20261029_152643"
+    assert calls[0]["engine_id"] == "river/20261030_132330"
     assert calls[0]["confidence_threshold"] == 0.25
     assert isinstance(calls[0]["image"], str) and len(calls[0]["image"]) > 100
     assert "image_url" not in calls[0]
