@@ -98,6 +98,8 @@ class Pipeline:
                     vlm_json = json.dumps(vlm_result.__dict__, ensure_ascii=False)
                     suspect = vlm_result.is_discharge
                 except Exception as e:
+                    # VLM 无效（超时/乱码/空返回）：保留规则判定的 suspect，
+                    # 状态机照常推进——VLM 全挂时系统退化为 规则引擎+状态机 两级
                     log.exception("%s VLM 调用失败，按规则结果处理: %s", cid, e)
             self._prev_frame = frames[0]
 

@@ -1,16 +1,19 @@
 # tests/test_vlm_judge.py
 import json
 import numpy as np
-from outlet_detect.vlm_judge import VLMJudge, build_prompt, parse_vlm_response
+import pytest
+from outlet_detect.vlm_judge import (VLMJudge, VLMResponseError, build_prompt,
+                                     parse_vlm_response)
 
 def test_parse_valid_json():
     r = parse_vlm_response('{"is_discharge": true, "confidence": 0.9,'
                            ' "reason": "排口发黑", "shadow_suspect": false}')
     assert r.is_discharge and r.confidence == 0.9 and not r.shadow_suspect
 
-def test_parse_garbage_returns_conservative():
-    r = parse_vlm_response("抱歉我无法分析这张图片")
-    assert not r.is_discharge and r.confidence == 0.0
+def test_parse_garbage_raises():
+    # 乱码/自然语言回复：抛 VLMResponseError，由 pipeline 兜底保留规则判定
+    with pytest.raises(VLMResponseError):
+        parse_vlm_response("抱歉我无法分析这张图片")
 
 def test_parse_json_embedded_in_text():
     r = parse_vlm_response('分析结果：{"is_discharge": true, "confidence": 0.8,'
@@ -76,3 +79,33 @@ def test_envelope_mode_raises_on_error_code(monkeypatch):
     with pytest.raises(RuntimeError):
         judge.judge(img, img, img,
                     {"rel_darkness": 0.8, "flow_energy": 2.0, "color_dev": 0.3, "score": 0.6})
+
+
+def test_parse_empty_raises():
+    with pytest.raises(VLMResponseError):
+        parse_vlm_response("")
+
+
+def test_parse_none_raises():
+    with pytest.raises(VLMResponseError):
+        parse_vlm_response(None)
+
+
+def test_parse_broken_json_raises():
+    with pytest.raises(VLMResponseError):
+        parse_vlm_response('{"is_discharge": true, "confidence": "高"}')  # 非法值
+
+
+def test_parse_valid_still_works():
+    r = parse_vlm_response('{"is_discharge": true, "confidence": 0.9, "reason": "有黑水", "shadow_suspect": false}')
+    assert r.is_discharge and r.confidence == 0.9
+
+
+def test_judge_none_content_raises():
+    """envelope 网关返回 content=None 时抛 VLMResponseError 而不是 TypeError。"""
+    j = VLMJudge("http://x", "k", "m", envelope=True)
+    j._post_envelope = lambda content: None
+    frame = np.zeros((10, 10, 3), dtype=np.uint8)
+    with pytest.raises(VLMResponseError):
+        j.judge(frame, frame, frame, {"rel_darkness": 1, "flow_energy": 1,
+                                      "color_dev": 1, "score": 0.5})

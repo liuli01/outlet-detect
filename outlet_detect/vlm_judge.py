@@ -13,6 +13,10 @@ class VLMResult:
     reason: str
     shadow_suspect: bool
 
+class VLMResponseError(RuntimeError):
+    """VLM 响应无效：超时/网关错误/空返回/JSON 乱码。
+    调用方（pipeline）捕获后保留规则判定的 suspect 结果，继续推进状态机。"""
+
 def build_prompt(features):
     return (
         "你是河道异常排水识别专家。给你三张图：图1是当前画面（已标注排口区/扩散区/参考水面区），"
@@ -31,15 +35,17 @@ def build_prompt(features):
     ).format(**features)
 
 def parse_vlm_response(text):
+    if not text:
+        raise VLMResponseError("VLM返回为空")
     m = re.search(r"\{.*\}", text, re.S)
     if not m:
-        return VLMResult(False, 0.0, "VLM返回无法解析: " + text[:100], False)
+        raise VLMResponseError("VLM返回无法解析: " + text[:100])
     try:
         d = json.loads(m.group(0))
         return VLMResult(bool(d["is_discharge"]), float(d["confidence"]),
                          str(d.get("reason", "")), bool(d.get("shadow_suspect", False)))
-    except (json.JSONDecodeError, KeyError, ValueError):
-        return VLMResult(False, 0.0, "VLM返回无法解析: " + text[:100], False)
+    except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
+        raise VLMResponseError(f"VLM返回JSON无效: {e} | {text[:100]}") from e
 
 def _b64(img):
     return base64.b64encode(cv2.imencode(".jpg", img)[1]).decode()
@@ -86,4 +92,6 @@ class VLMJudge:
                 temperature=0,
             )
             text = resp.choices[0].message.content
+        if not text:
+            raise VLMResponseError("VLM返回为空")
         return parse_vlm_response(text)
