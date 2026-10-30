@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from datetime import datetime
@@ -45,13 +46,19 @@ class Pipeline:
                                        status, [], int((time.time() - t0) * 1000))
             return status
 
-        ar = self.aligner.align(frames[0])
-        if not ar.ok or not ar.in_frame:
-            self.sm.suspend()
-            self.storage.record_sample(cid, ts, feats, "view_error", None, None,
-                                       "view_error", [], int((time.time() - t0) * 1000))
-            log.warning("%s 视角异常(conf=%.2f)，暂停判定", cid, ar.confidence)
-            return "view_error"
+        try:
+            ar = self.aligner.align(frames[0])
+            if not ar.ok or not ar.in_frame:
+                self.sm.suspend()
+                self.storage.record_sample(cid, ts, feats, "view_error", None, None,
+                                           "view_error", [], int((time.time() - t0) * 1000))
+                log.warning("%s 视角异常(conf=%.2f)，暂停判定", cid, ar.confidence)
+                return "view_error"
+        except Exception as e:
+            log.exception("%s 对齐失败: %s", cid, e)
+            self.storage.record_sample(cid, ts, feats, "error", None, None,
+                                       status, [], int((time.time() - t0) * 1000))
+            return status
         if self.sm.suspended:
             log.info("%s 视角恢复", cid)
             self.sm.resume()
@@ -88,7 +95,7 @@ class Pipeline:
                         ref = frames[0]
                     prev = self._prev_frame if self._prev_frame is not None else frames[-1]
                     vlm_result = self.vlm.judge(frames[0], ref, prev, feats)
-                    vlm_json = vlm_result.__dict__ and str(vlm_result.__dict__)
+                    vlm_json = json.dumps(vlm_result.__dict__, ensure_ascii=False)
                     suspect = vlm_result.is_discharge
                 except Exception as e:
                     log.exception("%s VLM 调用失败，按规则结果处理: %s", cid, e)

@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict
 from pathlib import Path
 
 CONFIG_DIR = Path("config/cameras")
@@ -23,10 +23,10 @@ def save_camera_config(cfg: CameraConfig) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     data = asdict(cfg)
     data["outfall_point"] = list(cfg.outfall_point)
-    _path(cfg.camera_id).write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    _path(cfg.camera_id).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def load_camera_config(camera_id: str) -> CameraConfig:
-    data = json.loads(_path(camera_id).read_text())
+    data = json.loads(_path(camera_id).read_text(encoding="utf-8"))
     data["outfall_point"] = tuple(data["outfall_point"])
     return CameraConfig(**data)
 
