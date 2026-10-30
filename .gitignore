@@ -7,3 +7,4 @@ config/cameras/*.json
 !config/cameras/.gitkeep
 frames_preview/
 videos/
+config/deploy.json
