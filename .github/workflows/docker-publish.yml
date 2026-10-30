@@ -1,4 +1,4 @@
-# 推送 v* 标签时构建镜像并发布到 GitHub Container Registry (ghcr.io)
+# 推送 v* 标签时：测试 → 构建镜像 → 容器冒烟（接口故障容错）→ 发布 ghcr.io
 # 用法：git tag v0.2.0 && git push origin v0.2.0
 name: docker-publish
 
@@ -29,6 +29,22 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      # 1) 本地构建（load）供冒烟
+      - uses: docker/build-push-action@v6
+        id: build
+        with:
+          context: .
+          file: deploy/Dockerfile
+          load: true
+          tags: outlet-detect:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 2) 冒烟：接口全部不可达时程序应降级运行而非崩溃
+      - name: 容器冒烟测试
+        run: sh deploy/smoke_test.sh outlet-detect:smoke
+
+      # 3) 冒烟通过才发布（命中缓存，秒级）
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -52,4 +68,3 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
