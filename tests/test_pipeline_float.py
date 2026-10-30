@@ -63,7 +63,7 @@ def test_float_detect_runs_on_frame1(tmp_path):
 
 def test_float_report_after_confirm(tmp_path):
     rep = FakeReporter()
-    pipe = make_pipe(tmp_path, [FloatDetection("bottle", 0.88, (10, 20, 50, 60))],
+    pipe = make_pipe(tmp_path, [FloatDetection("bottle", 0.88, (10, 220, 50, 260))],
                      reporter=rep)
     pipe.run_once()          # 第 1 次：观察
     assert rep.events == []
@@ -98,7 +98,7 @@ def test_float_detector_without_float_sm_does_not_break_discharge(tmp_path):
     frames = [np.full((400, 600, 3), 120 + i, dtype=np.uint8) for i in range(5)]
     cfg = CameraConfig(camera_id="cam1", outfall_point=(0, 0), reference_frame="",
                        hik_body={})
-    det = FakeFloatDetector([FloatDetection("bottle", 0.9, (10, 20, 50, 60))])
+    det = FakeFloatDetector([FloatDetection("bottle", 0.9, (10, 220, 50, 260))])
     pipe = Pipeline(cfg, ListFrameSampler(frames), StubWaterSegmenter(), _Aligner(),
                     CNNClassifier(None), None,
                     Storage(str(tmp_path / "t.db"), str(tmp_path / "arc")),
@@ -111,7 +111,7 @@ def test_float_detector_without_float_sm_does_not_break_discharge(tmp_path):
 def test_float_report_success_recorded(tmp_path):
     """上报成功后 reports 表落一行 ok=1。"""
     rep = FakeReporter()
-    pipe = make_pipe(tmp_path, [FloatDetection("bottle", 0.88, (10, 20, 50, 60))],
+    pipe = make_pipe(tmp_path, [FloatDetection("bottle", 0.88, (10, 220, 50, 260))],
                      reporter=rep)
     pipe.run_once()
     pipe.run_once()
@@ -129,7 +129,7 @@ def test_float_report_failure_recorded(tmp_path):
         def report(self, ev):
             raise ReporterError("minio 上传失败: boom")
 
-    pipe = make_pipe(tmp_path, [FloatDetection("bottle", 0.88, (10, 20, 50, 60))],
+    pipe = make_pipe(tmp_path, [FloatDetection("bottle", 0.88, (10, 220, 50, 260))],
                      reporter=BadReporter())
     pipe.run_once()
     status = pipe.run_once()  # 上报失败不阻断主线
@@ -164,3 +164,33 @@ def test_discharge_alert_reports(tmp_path):
     ev = rep.events[0]
     assert ev.result_b == ev.result_c and ev.result_b > 0
     assert ev.result_a == 0.0
+
+
+class _HalfMaskSegmenter:
+    """左半幅为水面的分割 stub。"""
+
+    def segment(self, frame):
+        import numpy as np
+        h, w = frame.shape[:2]
+        m = np.zeros((h, w), dtype=np.uint8)
+        m[:, : w // 2] = 255
+        return m
+
+
+def test_float_filtered_to_water_mask(tmp_path):
+    """岸上的检出被水面过滤，不推进状态机。"""
+    from outlet_detect.pipeline import Pipeline
+    det_on_land = FloatDetection("bag", 0.9, (400, 100, 500, 200))  # 中心(450,150) 右半幅=岸上
+    frames = [np.full((400, 600, 3), 120 + i, dtype=np.uint8) for i in range(5)]
+    cfg = CameraConfig(camera_id="cam1", outfall_point=(0, 0), reference_frame="",
+                       hik_body={})
+    fd = FakeFloatDetector([det_on_land])
+    sm = DischargeStateMachine("cam1_float", confirm_count=1)  # confirm=1：若未过滤会立即上报
+    pipe = Pipeline(cfg, ListFrameSampler(frames), _HalfMaskSegmenter(), _Aligner(),
+                    CNNClassifier(None), None,
+                    Storage(str(tmp_path / "t.db"), str(tmp_path / "arc")),
+                    DischargeStateMachine("cam1"), LogAlerter(str(tmp_path / "a.log")),
+                    float_detector=fd, float_sm=sm, reporter=FakeReporter())
+    pipe.run_once()
+    assert fd.calls == 1                       # 检测跑了
+    assert pipe.reporter.events == []          # 但岸上检出被过滤，不上报

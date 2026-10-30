@@ -9,6 +9,18 @@ class FloatDetection:
     bbox: tuple  # (x1, y1, x2, y2)
 
 
+def filter_to_water(detections, water_mask):
+    """只保留 bbox 中心落在水面 mask 内的检出（岸上误检过滤）。"""
+    h, w = water_mask.shape[:2]
+    out = []
+    for d in detections:
+        x1, y1, x2, y2 = d.bbox
+        cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
+        if 0 <= cx < w and 0 <= cy < h and water_mask[cy, cx] > 0:
+            out.append(d)
+    return out
+
+
 class HttpFloatDetector:
     def __init__(self, endpoint="http://127.0.0.1:8005/infer", engine_id="",
                  confidence=0.6, ignore_classes=(), timeout=30.0, post_fn=None):

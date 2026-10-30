@@ -80,3 +80,16 @@ def test_malformed_entries_raise_or_skip():
         {"class_name": "bag", "confidence": 0.9, "bbox": [1, 2, 3, 4]}]})
     out = det.detect(frame)
     assert len(out) == 1 and out[0].class_name == "bag" and out[0].bbox == (1, 2, 3, 4)
+
+
+def test_filter_to_water():
+    import numpy as np
+    from outlet_detect.float_detector import FloatDetection, filter_to_water
+    mask = np.zeros((100, 200), dtype=np.uint8)
+    mask[:, 100:] = 255  # 右半幅是水面
+    dets = [
+        FloatDetection("bottle", 0.9, (120, 40, 160, 60)),   # 中心(140,50) 在水面
+        FloatDetection("bag", 0.8, (10, 40, 50, 60)),        # 中心(30,50) 在岸上
+    ]
+    out = filter_to_water(dets, mask)
+    assert [d.class_name for d in out] == ["bottle"]

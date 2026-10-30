@@ -5,6 +5,7 @@ from datetime import datetime
 
 import cv2
 
+from outlet_detect.float_detector import filter_to_water
 from outlet_detect.rois import build_rois
 from outlet_detect.rule_engine import compute_features, score, verdict
 
@@ -38,18 +39,6 @@ class Pipeline:
 
         try:
             frames = self.sampler.capture(cid, n=5, body=self.config.hik_body)
-            # 漂浮物检测（帧1，独立于排污主线；失败不影响排污）
-            # float_detector/float_sm 须成对传入；缺 float_sm 时整个分支跳过
-            if (self.float_detector is not None and self.float_sm is not None
-                    and self.float_detector.enabled):
-                try:
-                    dets = self.float_detector.detect(frames[0])
-                except Exception as e:
-                    log.warning("%s 漂浮物检测失败: %s", cid, e)
-                else:
-                    fev = self.float_sm.update(bool(dets), ts_epoch)
-                    if fev is not None:
-                        self._report_float(cid, ts, frames[0], dets)
             mask = self.segmenter.segment(frames[0])
             if mask.sum() == 0:
                 log.warning("%s 分割结果无水面，按采样失败处理", cid)
@@ -61,6 +50,19 @@ class Pipeline:
             self.storage.record_sample(cid, ts, feats, "error", None, None,
                                        status, [], int((time.time() - t0) * 1000))
             return status
+
+        # 漂浮物检测（帧1，只计水面范围内的检出；失败不影响排污主线）
+        # float_detector/float_sm 须成对传入；缺 float_sm 时整个分支跳过
+        if (self.float_detector is not None and self.float_sm is not None
+                and self.float_detector.enabled):
+            try:
+                dets = filter_to_water(self.float_detector.detect(frames[0]), mask)
+            except Exception as e:
+                log.warning("%s 漂浮物检测失败: %s", cid, e)
+            else:
+                fev = self.float_sm.update(bool(dets), ts_epoch)
+                if fev is not None:
+                    self._report_float(cid, ts, frames[0], dets)
 
         try:
             ar = self.aligner.align(frames[0])
