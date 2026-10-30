@@ -140,6 +140,7 @@ if self.float_detector and self.float_detector.enabled:
 | minio 上传失败 | 记日志，不上报（本地告警日志仍在） |
 | 上报接口失败 | 记日志不阻断，下轮继续 |
 | 窗口外 | 不采样不计特征，状态机挂起状态保持 |
+| VLM 超时/网关错误/空返回/JSON 乱码 | 一律视为"VLM 无效"抛 VLMResponseError（**解析失败不得静默返回 is_discharge=False**）；管线 except 分支保留规则判定的 suspect 结果继续推进状态机——灰色区照样积累计数、到达 confirm_count 照样报警，上报置信度回退为规则 score。即 VLM 完全挂掉时系统退化为"规则引擎+状态机"两级，仍能识别排污 |
 
 ## 5. 存储
 
