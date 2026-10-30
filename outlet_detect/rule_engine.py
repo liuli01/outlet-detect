@@ -2,7 +2,9 @@
 import cv2
 import numpy as np
 
-DEFAULT_WEIGHTS = {"dark": 0.35, "flow": 0.35, "color": 0.2, "base": 0.1}
+# 验证集实测：波动是唯一拉开差距的特征（排污1.4~5.3 vs 静止1.0），
+# 黑度比值对"污水已扩散全河"场景失效（排口区与参考区一样黑），故权重向波动倾斜。
+DEFAULT_WEIGHTS = {"dark": 0.2, "flow": 0.5, "color": 0.2, "base": 0.1}
 
 def _clamp(v, lo=0.0, hi=1.0):
     return max(lo, min(hi, v))
