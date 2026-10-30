@@ -6,15 +6,16 @@ import json
 import logging
 from pathlib import Path
 
+from outlet_detect.view_align import AlignResult
+
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
 class _NoRefAligner:
-    """未标定（reference_frame 为空或文件缺失）摄像头的占位对齐器：
+    """未标定或参照帧损坏的摄像头的占位对齐器：
     恒返回对齐失败 → pipeline 按 view_error 挂起，不阻断组装与调度。"""
     def align(self, frame):
-        from outlet_detect.view_align import AlignResult
         return AlignResult(False, None, 0.0, False)
 
 
@@ -54,10 +55,15 @@ def build_pipelines(deploy_path="config/deploy.json"):
         if not cfg.hik_body.get("cameraIndexCode"):
             continue  # vlm.json 等辅助配置
         if cfg.reference_frame and Path(cfg.reference_frame).exists():
-            aligner = ViewAligner(cfg.reference_frame, cfg.outfall_point)
+            try:
+                aligner = ViewAligner(cfg.reference_frame, cfg.outfall_point)
+            except FileNotFoundError:
+                # 文件存在但内容损坏（截断 jpg 等）：cv2.imread 返回 None，
+                # ViewAligner 抛 FileNotFoundError。单摄像头标定文件损坏
+                # 不应瘫痪全局——降级为占位对齐器（view_error 挂起）
+                aligner = _NoRefAligner()
         else:
-            # ViewAligner 对空/缺失参照帧抛 FileNotFoundError；
-            # 未标定摄像头用占位对齐器挂起（view_error），待标定后生效
+            # 未标定（参照帧为空/缺失）同样用占位对齐器挂起，待标定后生效
             aligner = _NoRefAligner()
         pipes[cid] = Pipeline(
             config=cfg,
