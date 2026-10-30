@@ -7,7 +7,7 @@ dependencies = [
     "numpy>=2.5.4",
     "onnxruntime>=1.31.1",
     "openai>=3.41.0",
-    "opencv-python>=5.0.0.93",
+    "opencv-python-headless>=5.0.0.93",
     "requests>=2.34.2",
 ]
 
