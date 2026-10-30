@@ -61,3 +61,41 @@ class OnnxWaterSegmenter:
         mask = np.einsum("kd,kmn->mn", coeffs, proto)
         mask = (1 / (1 + np.exp(-mask)) > 0.5).astype(np.uint8) * 255
         return mask
+
+class HttpWaterSegmenter:
+    """已部署水面分割 HTTP 服务的适配器（/infer，多边形响应栅格化）。"""
+    def __init__(self, endpoint="http://127.0.0.1:8005/infer",
+                 engine_id="river/20261029_152643",
+                 confidence_threshold=0.25, timeout=30.0, post_fn=None):
+        self.endpoint = endpoint
+        self.engine_id = engine_id
+        self.confidence_threshold = confidence_threshold
+        self.timeout = timeout
+        self.post_fn = post_fn or self._default_post
+
+    @staticmethod
+    def _default_post(url, payload, timeout):
+        import requests
+        resp = requests.post(url, json=payload, timeout=timeout)
+        resp.raise_for_status()
+        return resp.json()
+
+    def segment(self, frame):
+        import base64
+        b64 = base64.b64encode(cv2.imencode(".jpg", frame)[1]).decode()
+        payload = {"engine_id": self.engine_id, "image": b64,
+                   "confidence_threshold": self.confidence_threshold}
+        try:
+            data = self.post_fn(self.endpoint, payload, self.timeout)
+        except Exception as e:
+            raise RuntimeError(f"水面分割服务调用失败: {e}") from e
+        if not isinstance(data, dict) or "detections" not in data:
+            raise RuntimeError(f"水面分割服务响应格式异常: {str(data)[:200]}")
+        h, w = frame.shape[:2]
+        mask = np.zeros((h, w), dtype=np.uint8)
+        for det in data["detections"]:
+            pts = det.get("points") or []
+            if len(pts) >= 3:
+                poly = np.array([[p["x"], p["y"]] for p in pts], dtype=np.int32)
+                cv2.fillPoly(mask, [poly], 255)
+        return mask

@@ -1,0 +1,16 @@
+{
+  "detections": [
+    {
+      "class_id": 0,
+      "class_name": "river",
+      "confidence": 0.9414,
+      "bbox": [10, 50, 190, 140],
+      "points": [
+        {"x": 10, "y": 100}, {"x": 190, "y": 100},
+        {"x": 190, "y": 140}, {"x": 10, "y": 140}
+      ]
+    }
+  ],
+  "engine_id": "river/20261029_152643",
+  "inference_time_ms": 112.66
+}
