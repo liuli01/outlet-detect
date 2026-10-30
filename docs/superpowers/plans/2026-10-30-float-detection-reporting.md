@@ -1335,9 +1335,11 @@ config/deploy.example.json：
   "minio_ak": "minio",
   "minio_sk": "minio123456",
   "report_url": "http://192.166.250.224:17082/api/insert_ai_result",
-  "external_host": "223.108.117.18"
+  "external_host": "223.108.117.18:17077"
 }
 ```
+
+注意：`external_host` 必须带端口（整体替换 minio 内网 `host:port`），与 hik-sdk.py 参考链路行为一致（外网 NAT 转发 17077）。
 
 .gitignore 追加一行：`config/deploy.json`
 
