@@ -5,6 +5,7 @@
 """
 import glob
 import os
+import sys
 
 import cv2
 import numpy as np
@@ -14,7 +15,7 @@ from outlet_detect.reporter import annotate_float
 from outlet_detect.water_seg import HttpWaterSegmenter
 
 FLOAT_ENGINE = "floating/20261030_145216"
-FLOAT_CONF = 0.3
+FLOAT_CONF = float(sys.argv[1]) if len(sys.argv) > 1 else 0.3
 ERODE_PX = 25
 SEG_CONF = 0.25
 OUT_DIR = "data/float_check"

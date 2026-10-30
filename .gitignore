@@ -1,10 +1,28 @@
+# Python
 __pycache__/
 *.pyc
 .venv/
+.pytest_cache/
+
+# 运行数据与产物
 data/
 archive/
+frames_preview/
+*.log
+
+# 密钥与部署配置（真实值不入库）
+config/deploy.json
 config/cameras/*.json
 !config/cameras/.gitkeep
-frames_preview/
+
+# 业务测试数据（监控照片/视频不公开）
+images/
 videos/
-config/deploy.json
+
+# 调试用图
+grid_*.jpg
+water_*.jpg
+water_*.png
+
+# SDD 工作区（过程稿）
+.superpowers/

@@ -1,4 +1,3 @@
-
 """
 海康安防平台API文档https://open.hikvision.com/docs/docId?productId=5c67f1e2f05948198c909700&version=%2Ff8356830af1d40f3b1da7db12baa47af&curNodeId=88b95f4c-be46-4894-889c-92685aa59602
 协议：仅支持 HTTPS 传输
@@ -17,16 +16,13 @@ import hashlib  # 提供了很多加密的算法
 import requests
 from urllib import parse
 from datetime import datetime
-import numpy as np
 import os
 import shutil
-
 import requests
 import json
-import cv2
-import fastdeploy as fd
-from fastdeploy.serving.utils import cv2_to_base64
+
 from minio.api import Minio
+from roboflow_sdk import image_predict
 import loguru
 
 
@@ -53,8 +49,8 @@ class Hik_API():
     def __init__(self,base_url,api_get_address_url,appKey,appSecret) -> None:
         self.base_url = base_url   # 可以正常访问的IP地址         
         self.api_get_address_url = api_get_address_url   # "/artemis/api/video/v1/cameras/previewURLs"，注意增加/artemis,
-        self.appKey = appKey                             #  appKey = "20850564"
-        self.appSecret = appSecret                       #  appSecret = "Oqk7J7QsUjlqbSxcA1ey"               
+        self.appKey = appKey                             #  appKey 从环境变量 HIK_APP_KEY 读取
+        self.appSecret = appSecret                       #  appSecret 从环境变量 HIK_APP_SECRET 读取               
  
 
     def requests(self,body):
@@ -88,7 +84,7 @@ class Hik_API():
         return results.json()
         
 def get_picture_url(body):
-    hik_api_preview= Hik_API (base_url = "https://223.71.143.153:14443",api_get_address_url="/artemis/api/video/v1/manualCapture",appKey="20850564",appSecret="Oqk7J7QsUjlqbSxcA1ey")
+    hik_api_preview= Hik_API (base_url = "https://223.71.143.153:14443",api_get_address_url="/artemis/api/video/v1/manualCapture",appKey=os.environ["HIK_APP_KEY"],appSecret=os.environ["HIK_APP_SECRET"])
     resp_json=hik_api_preview.requests(body)
     if resp_json["msg"]=="success":
         pic_url=resp_json["data"]["picUrl"]
@@ -99,7 +95,7 @@ def get_picture_url(body):
 
         
 def get_video_url(body):
-    hik_api_preview= Hik_API (base_url = "https://223.71.143.153:14443",api_get_address_url="/artemis/api/video/v1/cameras/playbackURLs",appKey="20850564",appSecret="Oqk7J7QsUjlqbSxcA1ey")
+    hik_api_preview= Hik_API (base_url = "https://223.71.143.153:14443",api_get_address_url="/artemis/api/video/v1/cameras/playbackURLs",appKey=os.environ["HIK_APP_KEY"],appSecret=os.environ["HIK_APP_SECRET"])
     resp_json=hik_api_preview.requests(body)
     print(resp_json)
     if resp_json["msg"]=="success":
@@ -113,7 +109,7 @@ def get_video_url(body):
 #%% 获取摄像机IndexCode列表
 def get_index_code_list():
     code_list=[]
-    requestUrl = 'http://8520.gr864596.20qkdfl9.192.166.250.224.nip.io:80/api/jyly/cameraindexcode'
+    requestUrl = 'http://192.166.250.224:17082/api/jyly/cameraindexcode'
     headers = {
     'Content-Type': 'application/x-www-form-urlencoded'
     }
@@ -129,7 +125,7 @@ def get_index_code_list():
 
 #%% 存入模型识别结果
 def save_model_result(index_code,input_picture,output_picture,resulta,resultb,resultc):
-    requestUrl = 'http://8520.gr864596.20qkdfl9.192.166.250.224.nip.io:80/api/insert_ai_result'
+    requestUrl = 'http://192.166.250.224:17082/api/insert_ai_result'
     headers = {
     'Content-Type': 'application/x-www-form-urlencoded'
     }
@@ -150,7 +146,7 @@ def save_model_result(index_code,input_picture,output_picture,resulta,resultb,re
 
 client = Minio(endpoint="192.166.250.223:17077", 
                access_key="minio", 
-               secret_key="minio123456",
+               secret_key=os.environ["MINIO_SECRET_KEY"],
                secure=False)
 def fput_object(bucket_name,object_name,file_path):
     client.fput_object(bucket_name, object_name, file_path,content_type="image/jpeg")
@@ -163,116 +159,54 @@ def fget_object_url(object_name):
     address_url=address.replace("192.166.250.223","223.108.117.18")
     return address_url
 
-# 自定义输出结果
-def filter_by_label_ids(data, ids_list,score_threshold):  
-    new_data = {}  
-    boxes = []  
-    scores = [] 
-    label_ids=[]
-    label_ids_list = data['label_ids']
-    if len(label_ids_list)==0:
-        return data
-    else:
-        for i in ids_list:
-            for j in range(len(label_ids_list)):
-                if i==label_ids_list[j] and data['scores'][j]>=score_threshold:
-                    boxes.append(data['boxes'][j])  
-                    scores.append(data['scores'][j])
-                    label_ids.append(data['label_ids'][j])
+def float_detection(index_code,ignore_list=[],confidence=0.9,color_confidence=0.9):
+        # 输入文件名称
+        input_name="./input.jpg"
+        # 获取当前时间  
+        now = datetime.now()  
+        # 格式化日期和时间  
+        formatted_date = now.strftime("%Y-%m-%d-%H-%M")
+        object_name = f"{index_code}-{formatted_date}.jpg"
 
-        new_data['boxes'] = boxes  
-        new_data['scores'] = scores 
-        new_data['label_ids'] = label_ids
-        new_data['masks'] = data['masks']  
-        new_data['contain_masks'] = data['contain_masks']  
-        return new_data
-    
+        body = {
+        "cameraIndexCode": index_code,
+        "recordLocation": "1",
+        "protocol": "hls",
+        "transmode": 1,
+        "uuid": ""
+        }
+        input_picture_url=get_picture_url(body=body)
 
-
-#%%
-# 根据index_code获取照片，并识别结果上传至Minio
-float_url = "http://8000.gr631ba3.20qkdfl9.192.166.250.224.nip.io/fd/yolov8/float"
-class_url = "http://8000.gr631ba3.20qkdfl9.192.166.250.224.nip.io/fd/yolov5/class"
-# url = "http://192.166.250.223:8000/fd/yolov8/test"
-headers = {"Content-Type": "application/json"}
-input_name="./input.jpg"
-def get_ai_result(index_code,label_ids,score_threshold):
-    # 获取当前时间  
-    now = datetime.now()  
-    # 格式化日期和时间  
-    formatted_date = now.strftime("%Y-%m-%d-%H-%M")
-    object_name = f"{index_code}-{formatted_date}.jpg"
-
-    body = {
-    "cameraIndexCode": index_code,
-    "recordLocation": "1",
-    "protocol": "hls",
-    "transmode": 1,
-    "uuid": ""
-    }
-    input_picture_url=get_picture_url(body=body)
-    # print(picture_url)
-
-    if input_picture_url:
-        response = requests.get(input_picture_url, verify=False)
-        with open(input_name,mode = "wb") as f:
-            f.write(response.content)
-        im = cv2.imread(input_name)
-        data = {"data": {"image": cv2_to_base64(im)}, "parameters": {}}
-
-        float_resp = requests.post(url=float_url, headers=headers, data=json.dumps(data))
-        class_resp = requests.post(url=class_url, headers=headers, data=json.dumps(data))
-        if class_resp.status_code == 200:
-            class_result=json.loads(class_resp.json()["result"])["label_ids"][0]
-            class_socre=json.loads(class_resp.json()["result"])["scores"][0]
-            # 0-四类水，1—五类水，2—劣五类，3—排口排污
-            # resulta 漂浮物  resultb 排口  resultc 水体颜色
-            if class_result==3 and class_socre>0.8:
-                resultb=1
-                resultc=0
-                fput_object(bucket_name='input-image',object_name=object_name,file_path=input_name)
-                save_model_result(index_code=index_code,input_picture=input_picture_url,output_picture=input_picture_url,resulta=0,resultb=resultb,resultc=resultc)
-                logger.info(f"排口报警:{resultb},得分：{class_socre},输入:{input_picture_url}")
-            if class_result==2 and class_socre>0.8:
-                resultb=0
-                resultc=class_result+4
-                fput_object(bucket_name='input-image',object_name=object_name,file_path=input_name)
-                save_model_result(index_code=index_code,input_picture=input_picture_url,output_picture=input_picture_url,resulta=0,resultb=resultb,resultc=resultc)
-                logger.info(f"水体颜色报警:{resultc},得分：{class_socre},输入:{input_picture_url}")
-            else:
-                resultb=0
-                resultc=0.1
-        else:
-            logger.error(f"request error, status_code: {class_resp.status_code}, response: {class_resp.json()}")
-        if float_resp.status_code == 200:
-            r_json = json.loads(float_resp.json()["result"])
-            # logger.info(f"所有结果{r_json}")
-            f_json = filter_by_label_ids(r_json, label_ids,score_threshold=score_threshold)
-            if len(f_json["label_ids"])>0:
-                resulta=round(np.mean(f_json['scores']),2)
-                det_result = fd.vision.utils.json_to_detection(f_json)
-                vis_im = fd.vision.vis_detection(im, det_result, score_threshold=score_threshold,line_size=3,font_size=1,labels=["unuser","unfloat","float"],font_color=[0,0,255],font_thickness=2)
-
-                cv2.imwrite(f"./output/{object_name}", vis_im)
+        if input_picture_url:
+            response = requests.get(input_picture_url, verify=False)
+            with open(input_name,mode = "wb") as f:
+                f.write(response.content)
+            # logger.info(f"识别图片:{input_picture_url}")
+            float_result=image_predict(model_id="floating-o49zc/3",input_image=input_name,output_image=object_name,ignore_list=ignore_list,confidence=confidence)
+            if float_result:
                 fput_object(bucket_name='ai-image',object_name=object_name,file_path=f"./output/{object_name}")
                 fput_object(bucket_name='input-image',object_name=object_name,file_path=input_name)
                 output_picture_url=fget_object_url(object_name)
-                save_model_result(index_code=index_code,input_picture=input_picture_url,output_picture=output_picture_url,resulta=resulta,resultb=0,resultc=0)
-                logger.info(f"筛选结果：{f_json['label_ids']},{resulta},输出:{output_picture_url}")
-            else:
-                pass
-                # logger.info(f"筛选结果：{f_json['label_ids']},无结果")
-        else:
-            logger.error(f"request error, status_code: {float_resp.status_code}, response: {float_resp.json()}")
+                save_model_result(index_code,input_picture_url,output_picture_url,resulta=confidence,resultb=0,resultc=0)
+                logger.info(f"识别图片:{output_picture_url},模型识别结果: {float_result}")
+           
+            # 误报多次，暂时屏蔽，自定义准确性0.95报警
+            color_result=image_predict(model_id="river_color/4",input_image=input_name,output_image=object_name,ignore_list=ignore_list,confidence=color_confidence)
+            if color_result:
+                fput_object(bucket_name='ai-image',object_name=object_name,file_path=f"./output/{object_name}")
+                fput_object(bucket_name='input-image',object_name=object_name,file_path=input_name)
+                output_picture_url=fget_object_url(object_name)
+                save_model_result(index_code,input_picture_url,output_picture_url,resulta=0,resultb=color_confidence,resultc=color_confidence)
+                logger.info(f"识别图片:{output_picture_url},模型识别结果: {color_result}")
+        
+try:
+    os.makedirs("./output",exist_ok=True)
+    index_code_list=get_index_code_list()
+    for i in range(len(index_code_list)):
+        index_code=index_code_list[i]
+        float_detection(index_code,ignore_list=["aeration"],confidence=0.6,color_confidence=0.95)
+    shutil.rmtree("./output",ignore_errors=True)
+    logger.info("20250305程序执行完成")
+except Exception as e:
+    logger.error(f"{i} 出错：{e}")
 
-# %%
-index_code_list=get_index_code_list()
-os.makedirs("./output",exist_ok=True)
-for i in index_code_list:
-    try:
-        get_ai_result(index_code=i,label_ids=[2],score_threshold=0.9)
-    except Exception as e:
-        logger.error(f"{i} 出错：{e}")
-#%%
-shutil.rmtree("./output",ignore_errors=True)
-# %%

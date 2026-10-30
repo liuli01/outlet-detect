@@ -1329,11 +1329,11 @@ config/deploy.example.json：
 ```json
 {
   "hik_base_url": "https://223.71.143.153:14443",
-  "app_key": "20850564",
+  "app_key": "在此填入AppKey",
   "app_secret": "在此填入真实AppSecret",
   "minio_endpoint": "192.166.250.223:17077",
   "minio_ak": "minio",
-  "minio_sk": "minio123456",
+  "minio_sk": "在此填入minio密码",
   "report_url": "http://192.166.250.224:17082/api/insert_ai_result",
   "external_host": "223.108.117.18:17077"
 }

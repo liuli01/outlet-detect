@@ -1,0 +1,18 @@
+# 河道排污/漂浮物检测 —— Docker Compose 部署
+# 用法：在 deploy/ 目录下 `docker compose up -d`
+# 配置从仓库根目录挂载（../config、../data）
+services:
+  outlet-detect:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: ghcr.io/${GITHUB_USER:-your-name}/outlet-detect:latest
+    container_name: outlet-detect
+    restart: unless-stopped
+    volumes:
+      - ../config/deploy.json:/app/config/deploy.json:ro
+      - ../config/cameras:/app/config/cameras:ro
+      - ../data:/app/data
+    # 系统无外露端口；依赖外部服务：
+    #   - 推理服务 http://<推理机>:8005（水面分割 + 漂浮物引擎）
+    #   - 海康 Artemis 平台、minio、业务上报平台（见 config/deploy.json）
