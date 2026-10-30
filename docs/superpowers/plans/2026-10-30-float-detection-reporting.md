@@ -1357,5 +1357,5 @@ git commit -m "feat: main.py真实组装+deploy.json部署配置+10:00~15:00时�
 
 1. 复制 `config/deploy.example.json` 为 `config/deploy.json` 并填入真实 AppSecret
 2. 用 `calibrate_tool` 对每个摄像头标定排口点（生成 cameras/<cid>.json + 参照帧）
-3. 漂浮物模型部署到 8005 后，把 engine_id 填入各摄像头配置的 `float_engine_id`
+3. 漂浮物模型已部署到 8005（engine_id：`floating/20261030_145216`），把该值填入各摄像头配置的 `float_engine_id`
 4. 联调一天检查业务平台收到上报、minio 图片可访问
