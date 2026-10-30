@@ -22,5 +22,6 @@ def test_replay_runs(tmp_path, monkeypatch):
     results = replay(path, camera_id="r1", interval_sec=10,
                      storage_dir=str(tmp_path))
     assert len(results) == 4  # 20帧 ÷ 5帧/轮 = 4轮
+    assert any(r != "sample_error" for r in results)
     assert all(r in ("normal", "suspect", "alert", "gray",
                      "view_error", "sample_error") for r in results)

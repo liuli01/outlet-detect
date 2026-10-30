@@ -28,6 +28,8 @@ def extract_sample_frames(video_path, interval_sec=300, burst=5, burst_gap_frame
     frames = []
     pos = 0
     step = int(interval_sec * fps)
+    if step <= 0:
+        raise ValueError(f"interval_sec={interval_sec} 过小或非法")
     while pos + (burst - 1) * burst_gap_frames < total:
         for k in range(burst):
             cap.set(cv2.CAP_PROP_POS_FRAMES, pos + k * burst_gap_frames)
