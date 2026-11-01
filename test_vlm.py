@@ -1,5 +1,8 @@
 """VLM 连通性测试：用排污样本调公司多模态大模型终判。
-配置从 config/cameras/vlm.json 读（gitignored，需先填入 base_url/api_key）。"""
+手动运行：uv run python test_vlm.py
+配置从 config/cameras/vlm.json 读（gitignored，需先填入 base_url/api_key）。
+注意：本文件不是 pytest 用例（模块名仅沿用习惯），主体在 __main__ 守卫内。
+"""
 import numpy as np
 import cv2
 
@@ -21,18 +24,24 @@ CASES = [
      {"rel_darkness": 0.75, "flow_energy": 1.00, "color_dev": 0.39, "score": 0.42}),
 ]
 
-_vc = load_camera_config("vlm")
-judge = VLMJudge(_vc.vlm_base_url, _vc.vlm_api_key, _vc.vlm_model,
-                 envelope=_vc.vlm_envelope)
-for name, path, ref_path, feats in CASES:
-    img = imread_cn(path)
-    ref = imread_cn(ref_path)
-    assert img is not None and ref is not None, path
-    try:
-        r = judge.judge(img, ref, img, feats)
-        print(f"[{name}]")
-        print(f"  is_discharge={r.is_discharge} confidence={r.confidence} "
-              f"shadow_suspect={r.shadow_suspect}")
-        print(f"  reason: {r.reason}\n")
-    except Exception as e:
-        print(f"[{name}] 调用失败: {type(e).__name__}: {e}\n")
+
+def main():
+    _vc = load_camera_config("vlm")
+    judge = VLMJudge(_vc.vlm_base_url, _vc.vlm_api_key, _vc.vlm_model,
+                     envelope=_vc.vlm_envelope)
+    for name, path, ref_path, feats in CASES:
+        img = imread_cn(path)
+        ref = imread_cn(ref_path)
+        assert img is not None and ref is not None, path
+        try:
+            r = judge.judge(img, ref, img, feats)
+            print(f"[{name}]")
+            print(f"  is_discharge={r.is_discharge} confidence={r.confidence} "
+                  f"shadow_suspect={r.shadow_suspect}")
+            print(f"  reason: {r.reason}\n")
+        except Exception as e:
+            print(f"[{name}] 调用失败: {type(e).__name__}: {e}\n")
+
+
+if __name__ == "__main__":
+    main()
