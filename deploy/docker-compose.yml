@@ -1,34 +1,50 @@
-# 河道排污/漂浮物检测 —— Docker Compose 部署
+# 河道排污/漂浮物检测 —— 生产部署（定时任务 + 测试页面）
 # 用法：在 deploy/ 目录下 `docker compose up -d`
 # 配置：环境变量来自 ../.env（参考仓库根 .env.example），摄像头标定挂载 ../config/cameras
 services:
+  # 定时任务主程序：每天 10:00~15:00（容器时区 Asia/Shanghai）每 5 分钟一轮检测上报
   outlet-detect:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    image: ghcr.io/${GITHUB_USER:-your-name}/outlet-detect:latest
+    image: ghcr.io/liuli01/outlet-detect:latest
     container_name: outlet-detect
     restart: unless-stopped
     env_file:
       - ../.env
+    environment:
+      - TZ=Asia/Shanghai
     volumes:
       - ../config/cameras:/app/config/cameras:ro
       - ../data:/app/data
-    # 系统无外露端口；依赖外部服务：
-    #   - 推理服务 http://<推理机>:8005（水面分割 + 漂浮物引擎）
-    #   - 海康 Artemis 平台、minio、业务上报平台（见 ../.env）
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 系统无外露端口；依赖外部服务（地址见 ../.env）：
+    #   - 推理服务 INFER_ENDPOINT（水面分割 + 漂浮物引擎）
+    #   - 海康 Artemis 平台、minio、业务上报平台、VLM（可选）
 
-  # 测试台（可选）：docker compose --profile tools up -d test-page
-  # 浏览器打开 http://127.0.0.1:8090 上传照片测漂浮物/排污检测
+  # 测试页面：上传照片/点选样本在线测漂浮物与排污检测
+  # 浏览器打开 http://<服务器IP>:8090（无鉴权，请用防火墙限制内网访问）
   test-page:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    image: ghcr.io/${GITHUB_USER:-your-name}/outlet-detect:latest
+    image: ghcr.io/liuli01/outlet-detect:latest
     container_name: outlet-detect-testpage
-    profiles: ["tools"]
+    restart: unless-stopped
     command: ["uv", "run", "--no-sync", "python", "-m", "outlet_detect.webapp"]
+    env_file:
+      - ../.env            # 只需要其中的 INFER_ENDPOINT
+    environment:
+      - TZ=Asia/Shanghai
+      - WEBAPP_HOST=0.0.0.0   # 容器内必须绑 0.0.0.0，否则宿主机访问不到
+      - WEBAPP_PORT=8090
     ports:
       - "8090:8090"
-    # 需要能访问 8005 推理服务；容器内 127.0.0.1 指向容器自身，
-    # 若推理服务在宿主机，启动前设置 extra_hosts 或用宿主机内网 IP
+    volumes:
+      # 样本库（可选）：挂载后页面可点选 images/ 下的测试照片；不需要可删除该行
+      - ../images:/app/images:ro
+    logging: *logging

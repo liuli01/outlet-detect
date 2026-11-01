@@ -447,8 +447,12 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
 
 
 def main():
+    import os
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8090)
+    # 容器内必须绑 0.0.0.0 才能从宿主访问（compose 里已设 WEBAPP_HOST）
+    uvicorn.run(app,
+                host=os.environ.get("WEBAPP_HOST", "127.0.0.1"),
+                port=int(os.environ.get("WEBAPP_PORT", "8090")))
 
 
 if __name__ == "__main__":

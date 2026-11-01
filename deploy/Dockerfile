@@ -2,6 +2,11 @@
 # 构建上下文为仓库根目录：docker build -f deploy/Dockerfile .
 FROM python:3.12-slim
 
+# 时区数据：调度窗口 10:00~15:00 按系统本地时间判断，容器默认 UTC 会偏 8 小时
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+    && rm -rf /var/lib/apt/lists/*
+ENV TZ=Asia/Shanghai
+
 # uv 包管理器（虚拟环境为 /app/.venv）
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 

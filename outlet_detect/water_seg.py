@@ -64,11 +64,14 @@ class OnnxWaterSegmenter:
 
 class HttpWaterSegmenter:
     """已部署水面分割 HTTP 服务的适配器（/infer，多边形响应栅格化）。"""
-    def __init__(self, endpoint="http://127.0.0.1:8005/infer",
+    def __init__(self, endpoint=None,
                  engine_id="river/20261030_132330",
                  confidence_threshold=0.25, timeout=30.0, post_fn=None,
                  erode_px=0):
-        self.endpoint = endpoint
+        # 推理服务地址：显式参数 > 环境变量 INFER_ENDPOINT > 本机默认
+        import os
+        self.endpoint = endpoint or os.environ.get(
+            "INFER_ENDPOINT", "http://127.0.0.1:8005/infer")
         self.engine_id = engine_id
         self.confidence_threshold = confidence_threshold
         self.timeout = timeout

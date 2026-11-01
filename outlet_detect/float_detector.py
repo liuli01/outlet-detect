@@ -1,4 +1,5 @@
 """漂浮物检测：复用 8005 推理服务（检测任务，返回 bbox）。"""
+import os
 from dataclasses import dataclass
 
 
@@ -22,9 +23,11 @@ def filter_to_water(detections, water_mask):
 
 
 class HttpFloatDetector:
-    def __init__(self, endpoint="http://127.0.0.1:8005/infer", engine_id="",
+    def __init__(self, endpoint=None, engine_id="",
                  confidence=0.6, ignore_classes=(), timeout=30.0, post_fn=None):
-        self.endpoint = endpoint
+        # 推理服务地址：显式参数 > 环境变量 INFER_ENDPOINT > 本机默认
+        self.endpoint = endpoint or os.environ.get(
+            "INFER_ENDPOINT", "http://127.0.0.1:8005/infer")
         self.engine_id = engine_id      # 空 = 关闭（模型未部署时的默认态）
         self.confidence = confidence
         self.ignore_classes = set(ignore_classes)
