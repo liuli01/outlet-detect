@@ -18,8 +18,9 @@ services:
     environment:
       - TZ=Asia/Shanghai
     volumes:
-      - cameras-config:/app/config/cameras:ro   # 摄像头标定（命名卷）
-      - detect-data:/app/data                   # SQLite/归档帧/告警日志（命名卷）
+      # 摄像头标定（读写：CAMERA_LIST_URL 自动接入时会往卷里写新档）
+      - cameras-config:/app/config/cameras
+      - detect-data:/app/data                   # SQLite/归档帧/告警日志/参照帧（命名卷）
     logging: &logging
       driver: json-file
       options:

@@ -11,6 +11,7 @@ from outlet_detect.view_align import AlignResult
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
+log = logging.getLogger("main")
 
 
 class _NoRefAligner:
@@ -51,6 +52,24 @@ def build_pipelines():
     capture_fn = make_capture_fn(_env("HIK_BASE_URL"), _env("HIK_APP_KEY"),
                                  _env("HIK_APP_SECRET"))
     download_fn = make_download_fn()
+
+    # 摄像头自动接入（可选）：CAMERA_LIST_URL 指向平台清单接口时，
+    # 未标定的摄像头自动建档（抓一帧当参照帧 + 排口点水面质心兜底）
+    list_url = os.environ.get("CAMERA_LIST_URL", "")
+    if list_url:
+        from outlet_detect import hik_adapter
+        from outlet_detect.discovery import auto_register
+        try:
+            codes = hik_adapter.get_index_code_list(list_url)
+        except Exception as e:
+            log.warning("获取摄像头列表失败，仅用已有标定文件: %s", e)
+        else:
+            created = auto_register(
+                codes, capture_fn, download_fn,
+                float_engine_id=os.environ.get("FLOAT_ENGINE_ID", ""))
+            if created:
+                log.info("自动接入 %d 路: %s", len(created), created)
+
     reporter = MinioReporter(_env("MINIO_ENDPOINT"), _env("MINIO_AK"),
                              _env("MINIO_SK"), _env("REPORT_URL"),
                              external_host=os.environ.get("EXTERNAL_HOST", ""))

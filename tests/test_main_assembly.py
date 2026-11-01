@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -78,3 +79,40 @@ def test_build_pipelines_missing_env_raises(tmp_path, monkeypatch):
     monkeypatch.delenv("HIK_APP_SECRET")
     with pytest.raises(RuntimeError, match="HIK_APP_SECRET"):
         build_pipelines()
+
+
+def test_auto_register_via_camera_list_url(tmp_path, monkeypatch):
+    """CAMERA_LIST_URL 设置后：清单里未标定的摄像头自动建档并装配（质心模式）。"""
+    import numpy as np
+    monkeypatch.setattr("outlet_detect.config.CONFIG_DIR", tmp_path / "cameras")
+    monkeypatch.setenv("CAMERA_LIST_URL", "http://platform/api/cameraindexcode")
+    monkeypatch.setenv("FLOAT_ENGINE_ID", "floating/1")
+    monkeypatch.setattr("outlet_detect.hik_adapter.get_index_code_list",
+                        lambda url: ["camA"])
+    monkeypatch.setattr("outlet_detect.hik_adapter.make_capture_fn",
+                        lambda *a: lambda body: "http://x/p.jpg")
+    monkeypatch.setattr("outlet_detect.hik_adapter.make_download_fn",
+                        lambda *a, **k: lambda url: np.full((60, 80, 3), 128,
+                                                            dtype=np.uint8))
+    pipes = build_pipelines()
+    assert "camA" in pipes                     # 自动建档 + 装配成功
+    assert pipes["camA"].config.outfall_point is None
+    assert pipes["camA"].float_detector.enabled
+    assert Path("data/reference/camA.jpg").exists()  # cwd 已是 tmp_path
+
+
+def test_camera_list_failure_keeps_existing(tmp_path, monkeypatch):
+    """清单接口挂掉不影响已有标定摄像头。"""
+    import json
+    monkeypatch.setattr("outlet_detect.config.CONFIG_DIR", tmp_path / "cameras")
+    monkeypatch.setenv("CAMERA_LIST_URL", "http://platform/api/cameraindexcode")
+    def boom(url):
+        raise ConnectionError("平台挂了")
+    monkeypatch.setattr("outlet_detect.hik_adapter.get_index_code_list", boom)
+    cam_dir = tmp_path / "cameras"
+    cam_dir.mkdir()
+    (cam_dir / "camA.json").write_text(json.dumps({
+        "camera_id": "camA", "hik_body": {"cameraIndexCode": "a"}}),
+        encoding="utf-8")
+    pipes = build_pipelines()                  # 不抛异常
+    assert list(pipes) == ["camA"]
