@@ -46,8 +46,8 @@ services:
     ports:
       - "8090:8090"
     volumes:
-      # 样本库（可选）：页面可点选卷里的测试照片；不需要可删除该行和卷定义
-      - sample-images:/app/images:ro
+      # 样本库（可选）：docker cp 经容器写入此卷；不需要可删除该行和卷定义
+      - sample-images:/app/images
     logging: *logging
 
 volumes:
