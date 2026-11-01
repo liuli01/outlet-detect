@@ -14,11 +14,10 @@ RUN uv sync --frozen --no-dev
 # 再拷代码
 COPY outlet_detect/ outlet_detect/
 COPY main.py ./
-COPY config/deploy.example.json config/
 
-# 运行时挂载：
-#   /app/config/deploy.json   部署配置（密钥）
-#   /app/config/cameras/      摄像头标定配置
+# 运行时配置：
+#   环境变量（.env，见仓库根 .env.example）——海康/minio/上报平台
+#   /app/config/cameras/      摄像头标定配置（挂载）
 #   /app/data                 SQLite 与归档帧（持久卷）
 VOLUME ["/app/data"]
 

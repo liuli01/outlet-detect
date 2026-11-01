@@ -7,13 +7,12 @@ set -u
 
 IMAGE="${1:?用法: smoke_test.sh <镜像名>}"
 
-OUT=$(docker run --rm --entrypoint sh "$IMAGE" -c '
+OUT=$(docker run --rm --entrypoint sh \
+  -e HIK_BASE_URL=https://127.0.0.1:1 -e HIK_APP_KEY=k -e HIK_APP_SECRET=s \
+  -e MINIO_ENDPOINT=127.0.0.1:1 -e MINIO_AK=a -e MINIO_SK=s \
+  -e REPORT_URL=http://127.0.0.1:1/api -e EXTERNAL_HOST= \
+  "$IMAGE" -c '
   mkdir -p config/cameras
-  cat > config/deploy.json << EOF
-{"hik_base_url":"https://127.0.0.1:1","app_key":"k","app_secret":"s",
- "minio_endpoint":"127.0.0.1:1","minio_ak":"a","minio_sk":"s",
- "report_url":"http://127.0.0.1:1/api","external_host":""}
-EOF
   cat > config/cameras/smoke01.json << EOF
 {"camera_id":"smoke01","outfall_point":[640,300],"reference_frame":"",
  "hik_body":{"cameraIndexCode":"smoke01"},

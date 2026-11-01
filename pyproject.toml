@@ -3,16 +3,21 @@ name = "outlet-detect"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "fastapi>=0.162.0",
     "minio>=7.2.20",
     "numpy>=2.5.4",
     "onnxruntime>=1.31.1",
     "openai>=3.41.0",
     "opencv-python-headless>=5.0.0.93",
+    "python-dotenv>=1.2.4",
+    "python-multipart>=0.0.33",
     "requests>=2.34.2",
+    "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=9.2.0",
 ]
 

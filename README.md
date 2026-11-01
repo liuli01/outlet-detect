@@ -27,8 +27,10 @@
 
 ```bash
 uv sync
-uv run pytest            # 89 个测试
-uv run python main.py    # 在线运行（需先完成配置，见 deploy/README.md）
+uv run pytest                          # 94 个测试
+cp .env.example .env                   # 填入真实配置
+uv run python main.py                  # 在线运行（详见 deploy/README.md）
+uv run python -m outlet_detect.webapp  # 测试台：http://127.0.0.1:8090 上传照片测检测
 ```
 
 部署与配置详见 [deploy/README.md](deploy/README.md)。

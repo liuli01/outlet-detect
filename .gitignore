@@ -11,6 +11,7 @@ frames_preview/
 *.log
 
 # 密钥与部署配置（真实值不入库）
+.env
 config/deploy.json
 config/cameras/*.json
 !config/cameras/.gitkeep

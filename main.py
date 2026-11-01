@@ -1,9 +1,10 @@
 """在线模式入口：python main.py
 回放模式入口：python main.py --replay videos/xxx.mp4
+测试台入口：python -m outlet_detect.webapp（FastAPI 页面上传照片测试）
 """
 import argparse
-import json
 import logging
+import os
 from pathlib import Path
 
 from outlet_detect.view_align import AlignResult
@@ -19,9 +20,19 @@ class _NoRefAligner:
         return AlignResult(False, None, 0.0, False)
 
 
-def build_pipelines(deploy_path="config/deploy.json"):
-    """组装各摄像头的真实组件。摄像头配置：config/cameras/*.json 中
-    hik_body.cameraIndexCode 非空的条目（vlm.json 等辅助配置自动跳过）。"""
+def _env(key):
+    v = os.environ.get(key)
+    if not v:
+        raise RuntimeError(f"缺少环境变量 {key}（参考 .env.example 配置 .env）")
+    return v
+
+
+def build_pipelines():
+    """组装各摄像头的真实组件。部署配置从 .env / 环境变量读取（见 .env.example）。
+    摄像头配置：config/cameras/*.json 中 hik_body.cameraIndexCode 非空的条目
+    （vlm.json 等辅助配置自动跳过）。"""
+    from dotenv import load_dotenv
+
     from outlet_detect.alerter import LogAlerter
     from outlet_detect.cnn_classifier import CNNClassifier
     from outlet_detect.config import load_camera_config, list_camera_ids
@@ -36,13 +47,13 @@ def build_pipelines(deploy_path="config/deploy.json"):
     from outlet_detect.vlm_judge import VLMJudge
     from outlet_detect.water_seg import HttpWaterSegmenter
 
-    deploy = json.loads(Path(deploy_path).read_text(encoding="utf-8"))
-    capture_fn = make_capture_fn(deploy["hik_base_url"], deploy["app_key"],
-                                 deploy["app_secret"])
+    load_dotenv()  # 读 .env（不覆盖已有环境变量）
+    capture_fn = make_capture_fn(_env("HIK_BASE_URL"), _env("HIK_APP_KEY"),
+                                 _env("HIK_APP_SECRET"))
     download_fn = make_download_fn()
-    reporter = MinioReporter(deploy["minio_endpoint"], deploy["minio_ak"],
-                             deploy["minio_sk"], deploy["report_url"],
-                             external_host=deploy.get("external_host", ""))
+    reporter = MinioReporter(_env("MINIO_ENDPOINT"), _env("MINIO_AK"),
+                             _env("MINIO_SK"), _env("REPORT_URL"),
+                             external_host=os.environ.get("EXTERNAL_HOST", ""))
     vlm = None
     if "vlm" in list_camera_ids():
         vc = load_camera_config("vlm")

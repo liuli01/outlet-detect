@@ -13,24 +13,22 @@
 
 ## 配置
 
-### 1. 部署配置 `config/deploy.json`
+### 1. 部署配置 `.env`
 
-复制 `config/deploy.example.json` 为 `config/deploy.json` 并填入真实值（该文件已 gitignore）：
+复制仓库根的 `.env.example` 为 `.env` 并填入真实值（该文件已 gitignore）：
 
-```json
-{
-  "hik_base_url": "https://<artemis-host>:14443",
-  "app_key": "<AppKey>",
-  "app_secret": "<AppSecret>",
-  "minio_endpoint": "<minio-host>:9000",
-  "minio_ak": "<access-key>",
-  "minio_sk": "<secret-key>",
-  "report_url": "http://<平台host>/api/insert_ai_result",
-  "external_host": "<外网host>:<minio外网端口>"
-}
+```
+HIK_BASE_URL=https://<artemis-host>:14443
+HIK_APP_KEY=<AppKey>
+HIK_APP_SECRET=<AppSecret>
+MINIO_ENDPOINT=<minio-host>:9000
+MINIO_AK=<access-key>
+MINIO_SK=<secret-key>
+REPORT_URL=http://<平台host>/api/insert_ai_result
+EXTERNAL_HOST=<外网host>:<minio外网端口>
 ```
 
-注意：`external_host` 必须带端口（整体替换 minio 内网 host:port，与外网 NAT 映射一致）。
+注意：`EXTERNAL_HOST` 必须带端口（整体替换 minio 内网 host:port，与外网 NAT 映射一致）。
 
 ### 2. 摄像头配置 `config/cameras/<indexCode>.json`
 
@@ -84,11 +82,22 @@ uv run python main.py
 
 ### 打 tag 发布镜像
 
-推送 `v*` 标签触发 GitHub Actions 构建并发布到 ghcr.io：
+推送 `v*` 标签触发 GitHub Actions：pytest → 构建 → 容器冒烟（接口全不可达时验证容错降级）→ 发布到 ghcr.io：
 
 ```bash
 git tag v0.2.0 && git push origin v0.2.0
 # 产出 ghcr.io/<owner>/outlet-detect:0.2.0 / :0.2 / :latest
+```
+
+### 测试台（可选）
+
+上传照片在线测试漂浮物/排污检测（需能访问 8005 推理服务）：
+
+```bash
+# 本地
+uv run python -m outlet_detect.webapp        # http://127.0.0.1:8090
+# Docker
+docker compose --profile tools up -d test-page
 ```
 
 ## 验证与排查
