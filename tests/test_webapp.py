@@ -65,3 +65,42 @@ def test_bad_image_returns_400(client):
     r = client.post("/test", files={"image": ("a.jpg", b"not an image", "image/jpeg")},
                     data={})
     assert r.status_code == 400
+
+
+@pytest.fixture
+def sample_tree(tmp_path, monkeypatch):
+    """构造假样本库：images/排污/g1/5帧 + images/无漂浮物/1张。"""
+    import outlet_detect.webapp as w
+    root = tmp_path / "images"
+    g1 = root / "排污" / "g1"
+    g1.mkdir(parents=True)
+    img = np.full((100, 150, 3), 100, dtype=np.uint8)
+    for i in range(5):
+        # 中文路径 cv2.imwrite 静默失败，用 imencode+tofile
+        cv2.imencode(".jpg", img + i)[1].tofile(str(g1 / f"{i}.jpg"))
+    (root / "无漂浮物").mkdir()
+    cv2.imencode(".jpg", img)[1].tofile(str(root / "无漂浮物" / "a.jpg"))
+    monkeypatch.setattr(w, "IMAGES_ROOT", root)
+    return root
+
+
+def test_index_lists_samples(client, sample_tree):
+    r = client.get("/")
+    assert "排污·g1" in r.text and "无漂浮物·a" in r.text
+    assert "/sample_img?path=" in r.text
+
+
+def test_sample_img_serves_and_guards(client, sample_tree):
+    r = client.get("/sample_img", params={"path": "无漂浮物/a.jpg"})
+    assert r.status_code == 200 and r.content[:2] == b"\xff\xd8"  # JPEG
+    assert client.get("/sample_img", params={"path": "../pyproject.toml"}).status_code == 400
+    assert client.get("/sample_img", params={"path": "排污/g1"}).status_code == 404  # 目录不是文件
+
+
+def test_test_with_sample_path(client, monkeypatch, sample_tree):
+    monkeypatch.setattr(webapp, "make_segmenter", lambda: FakeSeg())
+    monkeypatch.setattr(webapp, "make_detector", lambda e, c: _FakeDet())
+    r = client.post("/test", data={"sample_path": "排污/g1"})
+    assert r.status_code == 200
+    assert "样本组 g1（5 帧）" in r.text  # 真实5连帧而非复制
+    assert "检测结果" in r.text
