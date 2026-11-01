@@ -206,7 +206,7 @@ function pick(p){var f=document.getElementById('tform');f.sample_path.value=p;
 var Z=document.getElementById('zoom'),ZI=Z.querySelector('img');
 document.addEventListener('click',function(e){
   if(e.target.matches('.swapbtn')){
-    var img=e.target.parentElement.querySelector('img.out');
+    var img=e.target.closest('.card').querySelector('img.out');
     var showing=img.getAttribute('data-showing')||'ann';
     if(showing==='ann'){img.src=img.getAttribute('data-orig');img.setAttribute('data-showing','orig');
       e.target.textContent='切换回标注图';}
