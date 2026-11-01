@@ -54,11 +54,13 @@ def build_pipelines():
     reporter = MinioReporter(_env("MINIO_ENDPOINT"), _env("MINIO_AK"),
                              _env("MINIO_SK"), _env("REPORT_URL"),
                              external_host=os.environ.get("EXTERNAL_HOST", ""))
+    # VLM 终判：VLM_BASE_URL 留空 = 关闭（系统退化为规则+状态机）
     vlm = None
-    if "vlm" in list_camera_ids():
-        vc = load_camera_config("vlm")
-        vlm = VLMJudge(vc.vlm_base_url, vc.vlm_api_key, vc.vlm_model,
-                       envelope=vc.vlm_envelope)
+    if os.environ.get("VLM_BASE_URL"):
+        vlm = VLMJudge(_env("VLM_BASE_URL"), _env("VLM_API_KEY"),
+                       os.environ.get("VLM_MODEL", ""),
+                       envelope=os.environ.get("VLM_ENVELOPE", "").lower()
+                       in ("1", "true", "yes"))
 
     pipes = {}
     for cid in list_camera_ids():

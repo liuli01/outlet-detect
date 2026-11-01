@@ -71,12 +71,15 @@ def main():
 
     vlm = None
     if args.vlm:
-        from outlet_detect.config import load_camera_config
+        import os
+        from dotenv import load_dotenv
         from outlet_detect.vlm_judge import VLMJudge
-        vc = load_camera_config("vlm")
-        vlm = VLMJudge(vc.vlm_base_url, vc.vlm_api_key, vc.vlm_model,
-                       envelope=vc.vlm_envelope)
-        print(f"VLM 已接入: {vc.vlm_base_url}")
+        load_dotenv()
+        vlm = VLMJudge(os.environ["VLM_BASE_URL"], os.environ["VLM_API_KEY"],
+                       os.environ.get("VLM_MODEL", ""),
+                       envelope=os.environ.get("VLM_ENVELOPE", "").lower()
+                       in ("1", "true", "yes"))
+        print(f"VLM 已接入: {os.environ['VLM_BASE_URL']}")
 
     # 清掉上次运行的数据，避免累积
     for f in ("data/validate.db", "data/validate_alerts.log"):

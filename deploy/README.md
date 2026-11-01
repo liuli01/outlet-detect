@@ -51,17 +51,16 @@ EXTERNAL_HOST=<外网host>:<minio外网端口>
 - `float_confidence`：建议 0.3（验证集实测检出置信 0.48~0.85，默认 0.6 会漏检）
 - `hik_body.cameraIndexCode` 为空的文件（如 `vlm.json`）会被当作辅助配置跳过
 
-### 3. VLM 配置 `config/cameras/vlm.json`
+### 3. VLM 终判配置（在 .env 中）
 
-```json
-{
-  "camera_id": "vlm", "outfall_point": [0, 0], "reference_frame": "", "hik_body": {},
-  "vlm_base_url": "<VLM网关地址>", "vlm_api_key": "<key>",
-  "vlm_model": "", "vlm_envelope": true
-}
+```
+VLM_BASE_URL=<VLM网关地址>   # 留空 = 关闭 VLM
+VLM_API_KEY=<key>
+VLM_MODEL=                   # 公司网关路由默认模型可留空
+VLM_ENVELOPE=true            # 公司网关包装格式；标准 OpenAI 填 false
 ```
 
-VLM 故障（超时/乱码/空返回）不影响排污识别：系统退化为"规则引擎+状态机"照常报警，置信度回退为规则评分。
+VLM 故障（超时/乱码/空返回）或关闭时不影响排污识别：系统退化为"规则引擎+状态机"照常报警，置信度回退为规则评分。
 
 ## 运行
 

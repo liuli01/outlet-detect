@@ -20,21 +20,35 @@ def _env(monkeypatch, tmp_path):
 
 def test_build_pipelines_assembles(tmp_path, monkeypatch):
     monkeypatch.setattr("outlet_detect.config.CONFIG_DIR", tmp_path / "cameras")
+    monkeypatch.setenv("VLM_BASE_URL", "http://v")
+    monkeypatch.setenv("VLM_API_KEY", "k")
+    monkeypatch.setenv("VLM_MODEL", "")
+    monkeypatch.setenv("VLM_ENVELOPE", "true")
     cam_dir = tmp_path / "cameras"
     cam_dir.mkdir()
     (cam_dir / "cam01.json").write_text(json.dumps({
         "camera_id": "cam01", "outfall_point": [640, 300],
         "reference_frame": "", "hik_body": {"cameraIndexCode": "abc"},
         "float_engine_id": "float/1"}), encoding="utf-8")
-    (cam_dir / "vlm.json").write_text(json.dumps({
-        "camera_id": "vlm", "outfall_point": [0, 0], "reference_frame": "",
-        "hik_body": {}, "vlm_base_url": "http://v", "vlm_api_key": "k",
-        "vlm_model": "", "vlm_envelope": True}), encoding="utf-8")
     pipes = build_pipelines()
-    assert list(pipes) == ["cam01"]  # vlm.json 被跳过
+    assert list(pipes) == ["cam01"]
     p = pipes["cam01"]
     assert p.float_detector.enabled is True
     assert p.vlm is not None and p.reporter is not None
+
+
+def test_vlm_disabled_when_no_base_url(tmp_path, monkeypatch):
+    """VLM_BASE_URL 留空 → vlm=None（退化为规则+状态机）。"""
+    monkeypatch.setattr("outlet_detect.config.CONFIG_DIR", tmp_path / "cameras")
+    monkeypatch.delenv("VLM_BASE_URL", raising=False)
+    cam_dir = tmp_path / "cameras"
+    cam_dir.mkdir()
+    (cam_dir / "cam01.json").write_text(json.dumps({
+        "camera_id": "cam01", "outfall_point": [640, 300],
+        "reference_frame": "", "hik_body": {"cameraIndexCode": "abc"}}),
+        encoding="utf-8")
+    pipes = build_pipelines()
+    assert pipes["cam01"].vlm is None
 
 
 def test_build_pipelines_corrupt_reference_frame(tmp_path, monkeypatch):

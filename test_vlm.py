@@ -1,12 +1,14 @@
 """VLM 连通性测试：用排污样本调公司多模态大模型终判。
 手动运行：uv run python test_vlm.py
-配置从 config/cameras/vlm.json 读（gitignored，需先填入 base_url/api_key）。
+配置从 .env 读（VLM_BASE_URL/VLM_API_KEY/VLM_MODEL/VLM_ENVELOPE，见 .env.example）。
 注意：本文件不是 pytest 用例（模块名仅沿用习惯），主体在 __main__ 守卫内。
 """
+import os
+
 import numpy as np
 import cv2
+from dotenv import load_dotenv
 
-from outlet_detect.config import load_camera_config
 from outlet_detect.vlm_judge import VLMJudge
 
 
@@ -26,9 +28,11 @@ CASES = [
 
 
 def main():
-    _vc = load_camera_config("vlm")
-    judge = VLMJudge(_vc.vlm_base_url, _vc.vlm_api_key, _vc.vlm_model,
-                     envelope=_vc.vlm_envelope)
+    load_dotenv()
+    judge = VLMJudge(os.environ["VLM_BASE_URL"], os.environ["VLM_API_KEY"],
+                     os.environ.get("VLM_MODEL", ""),
+                     envelope=os.environ.get("VLM_ENVELOPE", "").lower()
+                     in ("1", "true", "yes"))
     for name, path, ref_path, feats in CASES:
         img = imread_cn(path)
         ref = imread_cn(ref_path)
