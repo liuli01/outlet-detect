@@ -13,7 +13,10 @@ ENV = {
 
 @pytest.fixture(autouse=True)
 def _env(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)  # 防止 load_dotenv 读到仓库根的真实 .env
+    monkeypatch.chdir(tmp_path)
+    # load_dotenv 的 find_dotenv 从调用文件向上查找，chdir 挡不住仓库根的真实 .env，
+    # 直接打桩成 no-op，保证测试只认 monkeypatch 的环境变量
+    monkeypatch.setattr("dotenv.load_dotenv", lambda *a, **k: False)
     for k, v in ENV.items():
         monkeypatch.setenv(k, v)
 

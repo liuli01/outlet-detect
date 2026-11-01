@@ -10,6 +10,10 @@ import sys
 import cv2
 import numpy as np
 
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 仓库根入 path，保证能 import outlet_detect
+
 from outlet_detect.float_detector import HttpFloatDetector, filter_to_water
 from outlet_detect.reporter import annotate_float
 from outlet_detect.water_seg import HttpWaterSegmenter

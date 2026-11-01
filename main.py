@@ -30,7 +30,7 @@ def _env(key):
 def build_pipelines():
     """组装各摄像头的真实组件。部署配置从 .env / 环境变量读取（见 .env.example）。
     摄像头配置：config/cameras/*.json 中 hik_body.cameraIndexCode 非空的条目
-    （vlm.json 等辅助配置自动跳过）。"""
+    （无 cameraIndexCode 的辅助配置自动跳过）。"""
     from dotenv import load_dotenv
 
     from outlet_detect.alerter import LogAlerter
@@ -66,7 +66,7 @@ def build_pipelines():
     for cid in list_camera_ids():
         cfg = load_camera_config(cid)
         if not cfg.hik_body.get("cameraIndexCode"):
-            continue  # vlm.json 等辅助配置
+            continue  # 无 cameraIndexCode 的辅助配置
         if cfg.reference_frame and Path(cfg.reference_frame).exists():
             try:
                 aligner = ViewAligner(cfg.reference_frame, cfg.outfall_point)

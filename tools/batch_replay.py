@@ -3,6 +3,11 @@ import glob
 import os
 import sqlite3
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 仓库根入 path，保证能 import outlet_detect
+
 from outlet_detect.alerter import LogAlerter
 from outlet_detect.cnn_classifier import CNNClassifier
 from outlet_detect.config import CameraConfig

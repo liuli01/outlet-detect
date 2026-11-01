@@ -12,10 +12,6 @@ class CameraConfig:
     hik_body: dict        # 海康 API 请求体（含 cameraIndexCode）
     score_low: float = 0.4
     score_high: float = 0.7
-    vlm_base_url: str = ""
-    vlm_api_key: str = ""
-    vlm_model: str = ""
-    vlm_envelope: bool = False  # True=公司网关包装格式 {code,data:{choices}}，False=标准OpenAI
     float_engine_id: str = ""       # 漂浮物引擎；空=关闭漂浮物检测
     float_confidence: float = 0.6
     ignore_classes: list = field(default_factory=list)  # 如 ["aeration"]

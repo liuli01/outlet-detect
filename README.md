@@ -39,6 +39,7 @@ uv run python -m outlet_detect.webapp  # 测试台：http://127.0.0.1:8090 上�
 
 - `outlet_detect/` —— 核心包（采样/分割/对齐/ROI/规则引擎/CNN/VLM/状态机/存储/上报/调度）
 - `main.py` —— 在线入口；`--replay` 回放模式
+- `tools/` —— 手动工具脚本（离线验证/回放/连通性测试/样本诊断等）
 - `deploy/` —— Dockerfile、docker-compose、部署文档
 - `tests/` —— pytest 套件
 - `docs/superpowers/` —— 设计文档与实施计划

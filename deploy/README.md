@@ -49,7 +49,7 @@ EXTERNAL_HOST=<外网host>:<minio外网端口>
 - `outfall_point`：排口像素坐标，用标定工具在参照帧上取点
 - `float_engine_id`：留空则该摄像头关闭漂浮物检测
 - `float_confidence`：建议 0.3（验证集实测检出置信 0.48~0.85，默认 0.6 会漏检）
-- `hik_body.cameraIndexCode` 为空的文件（如 `vlm.json`）会被当作辅助配置跳过
+- `hik_body.cameraIndexCode` 为空的文件会被当作辅助配置跳过
 
 ### 3. VLM 终判配置（在 .env 中）
 
@@ -104,7 +104,7 @@ docker compose --profile tools up -d test-page
 - 上报成败持久化在每个摄像头的 `data/<cid>.db` 的 `reports` 表（ok/error 字段）
 - 排污判定明细在 `samples` 表（特征值/score/verdict/VLM 结果）
 - 告警日志 `data/<cid>_alerts.log`，归档帧 `data/archive/<cid>/`
-- 离线验证：`uv run python validate_images.py`（排污）、`uv run python validate_float.py [阈值]`（漂浮物）
+- 离线验证：`uv run python tools/validate_images.py`（排污）、`uv run python tools/validate_float.py [阈值]`（漂浮物）
 - 回放调试：`uv run python main.py --replay <视频路径>`
 
 ## 上报字段约定

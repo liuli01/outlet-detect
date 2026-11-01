@@ -9,6 +9,11 @@ import sqlite3
 
 import cv2
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 仓库根入 path，保证能 import outlet_detect
+
 from outlet_detect.alerter import LogAlerter
 from outlet_detect.cnn_classifier import CNNClassifier
 from outlet_detect.config import CameraConfig
@@ -66,7 +71,7 @@ def main():
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--vlm", action="store_true",
-                    help="灰色地带送 VLM 终判（读 config/cameras/vlm.json，需先配置）")
+                    help="灰色地带送 VLM 终判（配置从 .env 读：VLM_BASE_URL 等）")
     args = ap.parse_args()
 
     vlm = None

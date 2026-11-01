@@ -5,6 +5,11 @@ import os
 import cv2
 import numpy as np
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 仓库根入 path，保证能 import outlet_detect
+
 from outlet_detect.rois import build_rois
 from outlet_detect.water_seg import HttpWaterSegmenter
 

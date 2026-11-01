@@ -1,5 +1,5 @@
 """VLM 连通性测试：用排污样本调公司多模态大模型终判。
-手动运行：uv run python test_vlm.py
+手动运行：uv run python tools/test_vlm.py
 配置从 .env 读（VLM_BASE_URL/VLM_API_KEY/VLM_MODEL/VLM_ENVELOPE，见 .env.example）。
 注意：本文件不是 pytest 用例（模块名仅沿用习惯），主体在 __main__ 守卫内。
 """
@@ -8,6 +8,11 @@ import os
 import numpy as np
 import cv2
 from dotenv import load_dotenv
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 仓库根入 path，保证能 import outlet_detect
 
 from outlet_detect.vlm_judge import VLMJudge
 

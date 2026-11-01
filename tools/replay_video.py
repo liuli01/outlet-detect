@@ -2,13 +2,13 @@
 
 用法示例：
   # 最简：Stub 假水面 + 排口点取画面中心
-  uv run python replay_video.py videos/xxx.mp4
+  uv run python tools/replay_video.py videos/xxx.mp4
 
   # 真实：HTTP 水面分割服务 + 指定排口像素坐标
-  uv run python replay_video.py videos/xxx.mp4 --http-seg --point 960,700 --interval 30
+  uv run python tools/replay_video.py videos/xxx.mp4 --http-seg --point 960,700 --interval 30
 
   # 先抽一帧看画面、确定排口坐标：
-  uv run python replay_video.py videos/xxx.mp4 --peek
+  uv run python tools/replay_video.py videos/xxx.mp4 --peek
 
 结果查看：
   判定列表直接打印；每轮特征值/score 在 data/replay.db 的 samples 表；
@@ -19,6 +19,10 @@ import sqlite3
 import sys
 
 import cv2
+
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # 仓库根入 path，保证能 import outlet_detect
 
 from outlet_detect.alerter import LogAlerter
 from outlet_detect.cnn_classifier import CNNClassifier
