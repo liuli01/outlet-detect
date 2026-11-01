@@ -132,6 +132,18 @@ padding:5px 14px;font-size:12px;cursor:pointer;margin-right:8px;transition:all .
 border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite;
 vertical-align:-2px;margin-right:8px}
 @keyframes rot{to{transform:rotate(360deg)}}
+/* 结果面板紧凑化：少占高度，多留空间给标注图 */
+#result .card{padding:12px 16px;margin-bottom:12px}
+#result .card>h3{margin-bottom:8px}
+#result .meta{margin-bottom:10px}
+#result .stats{gap:8px}
+#result .stat{padding:6px 10px;min-width:84px}
+#result .stat .k{font-size:11px;margin-bottom:2px}
+#result .stat .v{font-size:16px}
+#result .pill{font-size:12px;padding:3px 10px}
+#result td,#result th{padding:5px 8px}
+#result .legend{margin-bottom:8px}
+#result img.out{margin-top:2px}
 </style></head>
 <body><div class="wrap">
 <header class="top">
@@ -403,22 +415,18 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
     return f"""<div class="card"><h3>检测结果</h3>
 <div class="meta">帧来源：{html.escape(src_desc)} ｜ 排口点 {point}</div>
 <div class="stats">
-  <div class="stat"><div class="k">水面覆盖率</div><div class="v">{water_pct:.1f}%</div></div>
-  <div class="stat"><div class="k">综合评分</div><div class="v">{s:.3f}</div></div>
   <div class="stat"><div class="k">排污判定</div><div class="v"><span class="pill {vcls}">{verdict_cn}</span></div></div>
   <div class="stat"><div class="k">漂浮物判定</div><div class="v"><span class="pill {fcls}">{float_cn}</span></div></div>
+  <div class="stat"><div class="k">综合评分</div><div class="v">{s:.3f}</div></div>
+  <div class="stat"><div class="k">水面覆盖率</div><div class="v">{water_pct:.1f}%</div></div>
+  <div class="stat"><div class="k">相对黑度</div><div class="v">{feats['rel_darkness']:.2f}</div></div>
+  <div class="stat"><div class="k">波动能量比</div><div class="v">{feats['flow_energy']:.2f}</div></div>
+  <div class="stat"><div class="k">颜色偏离</div><div class="v">{feats['color_dev']:.2f}</div></div>
 </div></div>
 
 <div class="card"><h3>漂浮物（水面范围内 {len(dets)} / 总检出 {len(dets_all)}）</h3>
 {float_block}
 </div>
-
-<div class="card"><h3>排污特征</h3>
-<div class="stats">
-  <div class="stat"><div class="k">相对黑度</div><div class="v">{feats['rel_darkness']:.2f}</div></div>
-  <div class="stat"><div class="k">波动能量比</div><div class="v">{feats['flow_energy']:.2f}</div></div>
-  <div class="stat"><div class="k">颜色偏离</div><div class="v">{feats['color_dev']:.2f}</div></div>
-</div></div>
 
 <div class="card"><h3>标注图</h3>
 <div class="legend">
