@@ -41,42 +41,93 @@ OUTFALL_POINTS = {
 app = FastAPI(title="outlet-detect 测试台")
 
 PAGE = """<!doctype html>
-<html lang="zh"><head><meta charset="utf-8"><title>检测测试台</title>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>检测测试台</title>
 <style>
-body{font-family:sans-serif;max-width:1100px;margin:2em auto;color:#222}
-fieldset{margin:1em 0;padding:1em;border:1px solid #ccc;border-radius:6px}
-img.out{max-width:100%;border:1px solid #999}
-table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 10px}
-.gallery{display:flex;flex-wrap:wrap;gap:10px}
-.sample{text-align:center;font-size:12px}
-.sample img{width:180px;border:1px solid #999;cursor:pointer}
-.sample button{margin-top:2px}
-h4{margin:.6em 0 .2em}
+:root{--bg:#f3f5f9;--card:#fff;--line:#e4e8f0;--txt:#1f2430;--sub:#6b7280;
+--accent:#2563eb;--accent-d:#1d4ed8;--radius:12px;
+--shadow:0 1px 3px rgba(16,24,40,.08),0 4px 14px rgba(16,24,40,.05)}
+*{box-sizing:border-box}
+body{font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+background:var(--bg);color:var(--txt);margin:0;padding:32px 16px 64px}
+.wrap{max-width:1120px;margin:0 auto}
+header.top{margin-bottom:22px}
+h1{font-size:22px;margin:0 0 4px}
+.tagline{color:var(--sub);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+box-shadow:var(--shadow);padding:20px 22px;margin-bottom:18px}
+.card>h3{margin:0 0 14px;font-size:15px;display:flex;align-items:center;gap:8px}
+.card>h3::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent)}
+.hint{color:var(--sub);font-size:12px}
+.params{display:flex;flex-wrap:wrap;gap:16px 28px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;color:var(--sub)}
+.field .row{display:flex;align-items:center;gap:6px}
+input[type=number],input[type=text]{padding:7px 10px;border:1px solid var(--line);
+border-radius:8px;font-size:14px;background:#fafbfd;outline:none;transition:border-color .15s}
+input:focus{border-color:var(--accent);background:#fff}
+.filebox{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.filebtn{display:inline-block;padding:8px 18px;border:1px dashed #b6c2d9;border-radius:8px;
+color:var(--accent);cursor:pointer;font-size:14px;transition:all .15s;background:#f8faff}
+.filebtn:hover{border-color:var(--accent);background:#eef4ff}
+input[type=file]{display:none}
+#fname{font-size:13px;color:var(--sub)}
+.submit{margin-top:4px}
+.submit button{background:var(--accent);color:#fff;border:none;border-radius:9px;
+padding:11px 38px;font-size:15px;cursor:pointer;box-shadow:0 2px 6px rgba(37,99,235,.3);
+transition:background .15s}
+.submit button:hover{background:var(--accent-d)}
+.gsec{margin:14px 0 6px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:7px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+.g-pw .dot,.badge.g-pw{background:#dc2626}.g-nw .dot,.badge.g-nw{background:#16a34a}
+.g-fl .dot,.badge.g-fl{background:#d97706}.g-nofl .dot,.badge.g-nofl{background:#2563eb}
+.gsec .cnt{color:var(--sub);font-weight:400}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:8px}
+.sample{background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+cursor:pointer;transition:transform .15s,box-shadow .15s}
+.sample:hover{transform:translateY(-3px);box-shadow:0 6px 16px rgba(16,24,40,.13)}
+.thumb{position:relative;height:110px;background:#0b0f16}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.badge{position:absolute;top:6px;left:6px;color:#fff;font-size:11px;
+padding:2px 8px;border-radius:20px;opacity:.92}
+.s-label{padding:8px 10px;font-size:12px;color:var(--txt);line-height:1.4;
+white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 </style></head>
-<body>
-<h2>漂浮物 / 排污检测测试台</h2>
+<body><div class="wrap">
+<header class="top">
+  <h1>漂浮物 / 排污检测测试台</h1>
+  <div class="tagline">上传照片或点选样本库，走与线上一致的分割 → 漂浮物 → 排污评分链路</div>
+</header>
 <form method="post" action="/test" enctype="multipart/form-data">
-  <fieldset><legend>上传照片</legend>
-    <input type="file" name="image" accept="image/*">
-    <small>（与下方样本库二选一；都不选则报错）</small>
-  </fieldset>
-  <fieldset><legend>参数</legend>
-    排口点 x:<input name="outfall_x" type="number" value="0" size="6">
-    y:<input name="outfall_y" type="number" value="0" size="6">
-    <small>（0,0 = 样本标注点，无标注则画面中心）</small><br>
-    漂浮物引擎:<input name="float_engine" value="__ENGINE__" size="32">
-    置信度:<input name="float_conf" value="0.3" size="5">
-    <small>（引擎留空 = 关闭漂浮物检测）</small>
+  <div class="card"><h3>上传照片</h3>
+    <div class="filebox">
+      <label class="filebtn">选择图片…<input type="file" name="image" accept="image/*"
+        onchange="document.getElementById('fname').textContent=this.files[0]?this.files[0].name:''"></label>
+      <span id="fname"></span>
+      <span class="hint">与下方样本库二选一；单张照片复制 5 帧（波动=0）</span>
+    </div>
+  </div>
+  <div class="card"><h3>参数</h3>
+    <div class="params">
+      <div class="field"><label>排口点（0,0 = 样本标注点 / 画面中心）</label>
+        <div class="row">x <input name="outfall_x" type="number" value="0" style="width:90px">
+        y <input name="outfall_y" type="number" value="0" style="width:90px"></div></div>
+      <div class="field"><label>漂浮物引擎（留空 = 关闭）</label>
+        <input name="float_engine" type="text" value="__ENGINE__" style="width:250px"></div>
+      <div class="field"><label>漂浮物置信度</label>
+        <input name="float_conf" type="text" value="0.3" style="width:80px"></div>
+    </div>
     <input type="hidden" name="sample_path" value="">
-  </fieldset>
-  <p><button type="submit" style="font-size:1.1em;padding:.4em 2em">检测上传照片</button></p>
+    <p class="submit"><button type="submit">开始检测</button></p>
+  </div>
 </form>
 __GALLERY__
 <script>
 function pick(p){var f=document.forms[0];f.sample_path.value=p;
   f.querySelector('input[type=file]').value='';f.submit();}
 </script>
-</body></html>"""
+</div></body></html>"""
 
 
 def make_segmenter():
@@ -134,6 +185,10 @@ def load_sample_frames(rel: str):
     return [img] * 5, None, f"单张样本 {p.name}（复制5帧，波动=0）"
 
 
+GROUP_CLASS = {"排污（5连帧）": "g-pw", "无排污": "g-nw",
+               "有漂浮物": "g-fl", "无漂浮物": "g-nofl"}
+
+
 @app.get("/", response_class=HTMLResponse)
 def index():
     samples = list_samples()
@@ -143,17 +198,21 @@ def index():
             groups.setdefault(s["group"], []).append(s)
         parts = []
         for g, items in groups.items():
+            cls = GROUP_CLASS.get(g, "g-nofl")
             cards = "".join(
-                f"<div class='sample'><img src='/sample_img?path="
-                f"{html.escape(s['thumb'])}' onclick=\"pick('{html.escape(s['path'])}')\">"
-                f"<br>{html.escape(s['label'])}"
-                f"<br><button onclick=\"pick('{html.escape(s['path'])}')\">测这个</button></div>"
+                f"<div class='sample' onclick=\"pick('{html.escape(s['path'])}')\">"
+                f"<div class='thumb'><img loading='lazy' src='/sample_img?path="
+                f"{html.escape(s['thumb'])}'><span class='badge {cls}'>{html.escape(g)}</span></div>"
+                f"<div class='s-label'>{html.escape(s['label'])}</div></div>"
                 for s in items)
-            parts.append(f"<h4>{g}</h4><div class='gallery'>{cards}</div>")
-        gallery = "<fieldset><legend>样本库（点击照片直接测）</legend>" + "".join(parts) + "</fieldset>"
+            parts.append(f"<div class='gsec {cls}'><span class='dot'></span>{g}"
+                         f"<span class='cnt'>（{len(items)}）</span></div>"
+                         f"<div class='gallery'>{cards}</div>")
+        gallery = ("<div class='card'><h3>样本库（点击照片直接测）</h3>"
+                   + "".join(parts) + "</div>")
     else:
-        gallery = ("<fieldset><legend>样本库</legend>"
-                   "<p>未找到 images/ 目录（本地测试数据，不入库）</p></fieldset>")
+        gallery = ("<div class='card'><h3>样本库</h3>"
+                   "<p class='hint'>未找到 images/ 目录（本地测试数据，不入库）</p></div>")
     return PAGE.replace("__ENGINE__", DEFAULT_FLOAT_ENGINE).replace("__GALLERY__", gallery)
 
 
@@ -232,39 +291,98 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
 
     kept = {id(d) for d in dets}
     rows = "".join(
-        f"<tr><td>{'✔ 保留' if id(d) in kept else '✘ 岸上过滤'}</td>"
+        f"<tr class='{'keep' if id(d) in kept else 'drop'}'>"
+        f"<td>{'✔ 保留' if id(d) in kept else '✘ 岸上过滤'}</td>"
         f"<td>{html.escape(d.class_name)}</td><td>{d.confidence:.2f}</td>"
         f"<td>{tuple(int(x) for x in d.bbox)}</td></tr>" for d in dets_all)
-    float_rows = rows or "<tr><td colspan=4>无检出</td></tr>"
-    float_block = (f"<p style='color:red'>漂浮物检测异常：{html.escape(float_err)}</p>"
+    float_rows = rows or "<tr><td colspan=4 class='empty'>无检出</td></tr>"
+    float_block = (f"<p class='errbox'>漂浮物检测异常：{html.escape(float_err)}</p>"
                    if float_err else
                    f"<table><tr><th>水面过滤</th><th>类别</th><th>置信度</th>"
                    f"<th>bbox</th></tr>{float_rows}</table>")
     verdict_cn = {"normal": "正常", "gray": "灰色（线上送 CNN/VLM 终判）",
                   "suspect": "疑似排污"}.get(v, v)
+    vcls = {"normal": "ok", "gray": "warn", "suspect": "bad"}.get(v, "ok")
     return f"""<!doctype html>
-<html lang="zh"><head><meta charset="utf-8"><title>检测结果</title>
-<style>body{{font-family:sans-serif;max-width:960px;margin:2em auto}}
-img.out{{max-width:100%;border:1px solid #999}}
-table{{border-collapse:collapse}}td,th{{border:1px solid #ccc;padding:4px 10px}}</style></head>
-<body>
-<h2>检测结果</h2>
-<p><a href="/">← 返回测试台</a></p>
-<p>帧来源：{html.escape(src_desc)}；排口点 {point}</p>
-<h3>水面分割</h3><p>水面覆盖率 {water_pct:.1f}%</p>
-<h3>漂浮物（水面范围内 {len(dets)} / 总检出 {len(dets_all)}）</h3>
-{float_block}
-<h3>排污</h3>
-<table>
-<tr><th>综合评分</th><td>{s:.3f}</td></tr>
-<tr><th>判定</th><td><b>{verdict_cn}</b></td></tr>
-<tr><th>相对黑度</th><td>{feats['rel_darkness']:.2f}</td></tr>
-<tr><th>波动能量比</th><td>{feats['flow_energy']:.2f}</td></tr>
-<tr><th>颜色偏离</th><td>{feats['color_dev']:.2f}</td></tr>
-</table>
-<h3>标注图（红=排口区 黄=扩散区 绿圈=参考区 绿色蒙版=水面 红框=漂浮物 紫叉=排口点）</h3>
-<img class="out" src="data:image/jpeg;base64,{_b64img(ann)}">
-</body></html>"""
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>检测结果</title>
+<style>
+:root{{--bg:#f3f5f9;--card:#fff;--line:#e4e8f0;--txt:#1f2430;--sub:#6b7280;
+--accent:#2563eb;--radius:12px;
+--shadow:0 1px 3px rgba(16,24,40,.08),0 4px 14px rgba(16,24,40,.05)}}
+*{{box-sizing:border-box}}
+body{{font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+background:var(--bg);color:var(--txt);margin:0;padding:32px 16px 64px}}
+.wrap{{max-width:1000px;margin:0 auto}}
+h1{{font-size:22px;margin:0 0 4px}}
+.meta{{color:var(--sub);font-size:13px;margin-bottom:20px}}
+.back{{display:inline-block;margin-bottom:16px;color:var(--accent);text-decoration:none;
+font-size:14px;padding:7px 16px;border:1px solid var(--line);border-radius:8px;
+background:#fff;box-shadow:var(--shadow)}}
+.back:hover{{border-color:var(--accent)}}
+.card{{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+box-shadow:var(--shadow);padding:20px 22px;margin-bottom:18px}}
+.card>h3{{margin:0 0 14px;font-size:15px;display:flex;align-items:center;gap:8px}}
+.card>h3::before{{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent)}}
+.stats{{display:flex;gap:14px;flex-wrap:wrap}}
+.stat{{flex:1;min-width:130px;background:#f8fafd;border:1px solid var(--line);
+border-radius:10px;padding:12px 16px}}
+.stat .k{{font-size:12px;color:var(--sub);margin-bottom:4px}}
+.stat .v{{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}}
+.pill{{display:inline-block;padding:4px 14px;border-radius:20px;font-size:14px;font-weight:600}}
+.pill.ok{{background:#dcfce7;color:#15803d}}
+.pill.warn{{background:#fef3c7;color:#b45309}}
+.pill.bad{{background:#fee2e2;color:#b91c1c}}
+table{{border-collapse:collapse;width:100%;font-size:13px}}
+td,th{{border-bottom:1px solid var(--line);padding:8px 12px;text-align:left}}
+th{{color:var(--sub);font-weight:600;font-size:12px;background:#f8fafd}}
+tr.keep td:first-child{{color:#15803d}}
+tr.drop td:first-child{{color:#b91c1c}}
+td.empty{{color:var(--sub);text-align:center}}
+.errbox{{color:#b91c1c;background:#fee2e2;border-radius:8px;padding:10px 14px;font-size:13px}}
+img.out{{max-width:100%;border-radius:8px;border:1px solid var(--line);display:block}}
+.legend{{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--sub);margin-bottom:12px}}
+.lg{{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;
+vertical-align:-1px}}
+</style></head>
+<body><div class="wrap">
+<a class="back" href="/">← 返回测试台</a>
+<h1>检测结果</h1>
+<div class="meta">帧来源：{html.escape(src_desc)} ｜ 排口点 {point}</div>
+
+<div class="card"><h3>水面分割</h3>
+  <div class="stats">
+    <div class="stat"><div class="k">水面覆盖率</div><div class="v">{water_pct:.1f}%</div></div>
+  </div>
+</div>
+
+<div class="card"><h3>漂浮物（水面范围内 {len(dets)} / 总检出 {len(dets_all)}）</h3>
+  {float_block}
+</div>
+
+<div class="card"><h3>排污</h3>
+  <div class="stats">
+    <div class="stat"><div class="k">综合评分</div><div class="v">{s:.3f}</div></div>
+    <div class="stat"><div class="k">判定</div><div class="v"><span class="pill {vcls}">{verdict_cn}</span></div></div>
+    <div class="stat"><div class="k">相对黑度</div><div class="v">{feats['rel_darkness']:.2f}</div></div>
+    <div class="stat"><div class="k">波动能量比</div><div class="v">{feats['flow_energy']:.2f}</div></div>
+    <div class="stat"><div class="k">颜色偏离</div><div class="v">{feats['color_dev']:.2f}</div></div>
+  </div>
+</div>
+
+<div class="card"><h3>标注图</h3>
+  <div class="legend">
+    <span><span class="lg" style="background:#00c853;opacity:.5"></span>绿色蒙版 = 水面</span>
+    <span><span class="lg" style="background:#f43f5e"></span>红 = 排口区</span>
+    <span><span class="lg" style="background:#eab308"></span>黄 = 扩散区</span>
+    <span><span class="lg" style="background:#22c55e"></span>绿圈 = 参考区</span>
+    <span><span class="lg" style="background:#ef4444"></span>红框 = 漂浮物</span>
+    <span><span class="lg" style="background:#d946ef"></span>紫叉 = 排口点</span>
+  </div>
+  <img class="out" src="data:image/jpeg;base64,{_b64img(ann)}">
+</div>
+</div></body></html>"""
 
 
 def main():
