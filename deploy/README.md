@@ -97,7 +97,7 @@ VLM_ENVELOPE=true            # 公司网关包装格式；标准 OpenAI 填 fals
 }
 ```
 
-- `outfall_point`：排口像素坐标，用标定工具在参照帧上取点
+- `outfall_point`：排口像素坐标，用标定工具在参照帧上取点；**标不了排口时可省略或填 `null`**——运行时自动用分割 mask 的水面质心做锚点（能发现河道中部排污/大面积黑水），日志会标记"未标定排口点"，补标定后恢复精确模式
 - `reference_frame`：标定参照帧，**容器内路径** `/app/data/reference/` 下（即 `detect-data` 卷）；缺失/损坏时该摄像头自动挂起（view_error），不影响其他摄像头
 - `float_engine_id`：留空则该摄像头关闭漂浮物检测
 - `float_confidence`：建议 0.3（验证集实测检出置信 0.48~0.85，默认 0.6 会漏检）

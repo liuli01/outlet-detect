@@ -77,3 +77,18 @@ def test_view_error_suspends(tmp_path, monkeypatch):
     assert p.run_once(0) == "view_error"
     p.aligner = FakeAlignerOK()           # 摄像头转回
     assert p.run_once(300) == "normal"    # 自动恢复
+
+
+class FakeAlignerNoPoint:
+    """视角正常但未标定排口点。"""
+    def align(self, frame):
+        from outlet_detect.view_align import AlignResult
+        return AlignResult(True, None, 0.9, True)
+
+
+def test_no_outfall_point_uses_water_centroid(tmp_path, monkeypatch):
+    # StubWaterSegmenter 下半幅为水面 → 质心约 (299,299)，正落在 suspect_frames
+    # 的黑闪块 [250:350, 250:350] 内，质心兜底应照样检出
+    p = make_pipeline(tmp_path, suspect_frames(), FakeAlignerNoPoint(),
+                      FakeVLM(True), monkeypatch)
+    assert p.run_once(0) == "suspect"

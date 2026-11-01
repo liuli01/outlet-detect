@@ -31,6 +31,16 @@ def snap_to_water(water_mask, point, max_dist=200):
             return (int(xs[i] + x0), int(ys[i] + y0))
     return (x, y)
 
+def mask_centroid(water_mask):
+    """水面 mask 质心，作为未标定排口点时的自动锚点（水面正中）。
+    无水面时退化为画面中心。"""
+    ys, xs = np.nonzero(water_mask)
+    if len(xs) == 0:
+        h, w = water_mask.shape[:2]
+        return (w // 2, h // 2)
+    return (int(xs.mean()), int(ys.mean()))
+
+
 def build_rois(water_mask, outfall_point, r_outfall=60, r_plume=180, r_ref=250):
     """基于水面 mask 与排口点生成三个互斥 ROI（均为水面像素的子集）。
     排口区：半径 r_outfall 内水面；扩散区：r_outfall~r_plume 环带水面；

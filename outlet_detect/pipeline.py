@@ -6,7 +6,7 @@ from datetime import datetime
 import cv2
 
 from outlet_detect.float_detector import filter_to_water
-from outlet_detect.rois import build_rois
+from outlet_detect.rois import build_rois, mask_centroid
 from outlet_detect.rule_engine import compute_features, score, verdict
 
 log = logging.getLogger(__name__)
@@ -82,7 +82,13 @@ class Pipeline:
             self.sm.resume()
 
         try:
-            rois = build_rois(mask, ar.mapped_point)
+            point = ar.mapped_point
+            if point is None:
+                # 未标定排口点：用分割 mask 的水面质心做自动锚点，
+                # 能发现河道中部排污/大面积黑水；补标定后自动恢复精确模式
+                point = mask_centroid(mask)
+                log.info("%s 未标定排口点，本轮用水面质心 %s", cid, point)
+            rois = build_rois(mask, point)
             baseline = self.storage.get_baseline_darkness(cid, hour=int(ts[11:13]), before_ts=ts)
             feats = compute_features(frames, rois, baseline)
             s = score(feats)

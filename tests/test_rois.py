@@ -37,3 +37,16 @@ def test_snap_to_water_moves_outside_point():
     # build_rois 对 mask 外排口点也能生成非空排口区
     rois = build_rois(mask, (200, 120))
     assert rois.outfall.sum() > 0
+
+
+def test_mask_centroid():
+    from outlet_detect.rois import mask_centroid
+    mask = np.zeros((400, 600), dtype=np.uint8)
+    mask[200:, :] = 255  # 下半幅是水面
+    cx, cy = mask_centroid(mask)
+    assert abs(cx - 300) <= 1 and abs(cy - 300) <= 1  # 水面正中
+
+
+def test_mask_centroid_empty_falls_back_to_frame_center():
+    from outlet_detect.rois import mask_centroid
+    assert mask_centroid(np.zeros((400, 600), dtype=np.uint8)) == (300, 200)

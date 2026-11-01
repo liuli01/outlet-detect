@@ -36,3 +36,15 @@ def test_align_fails_on_unrelated_frame(tmp_path):
     aligner = ViewAligner(ref_path, (300, 200))
     result = aligner.align(other)
     assert not result.ok
+
+
+def test_align_without_outfall_point_only_checks_view(tmp_path):
+    """未标定排口点（None）：视角校验照常，mapped_point=None 交给质心兜底。"""
+    ref = make_scene()
+    ref_path = str(tmp_path / "ref.jpg")
+    cv2.imwrite(ref_path, ref)
+    aligner = ViewAligner(ref_path, None)
+    ok = aligner.align(ref)
+    assert ok.ok and ok.in_frame and ok.mapped_point is None
+    bad = aligner.align(make_scene(seed=99))
+    assert not bad.ok

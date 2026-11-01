@@ -47,3 +47,18 @@ def test_old_config_json_loads_with_defaults(tmp_path, monkeypatch):
         "hik_body": {}}), encoding="utf-8")
     loaded = load_camera_config("old")
     assert loaded.float_engine_id == "" and loaded.ignore_classes == []
+
+
+def test_missing_outfall_point_loads_as_none(tmp_path, monkeypatch):
+    """排口点缺省/null → None（运行时水面质心兜底）；保存 None 也不报错。"""
+    monkeypatch.setattr("outlet_detect.config.CONFIG_DIR", tmp_path)
+    (tmp_path / "c1.json").write_text(json.dumps({
+        "camera_id": "c1", "reference_frame": "",
+        "hik_body": {"cameraIndexCode": "x"}}), encoding="utf-8")
+    assert load_camera_config("c1").outfall_point is None
+    (tmp_path / "c2.json").write_text(json.dumps({
+        "camera_id": "c2", "outfall_point": None, "reference_frame": "",
+        "hik_body": {}}), encoding="utf-8")
+    assert load_camera_config("c2").outfall_point is None
+    save_camera_config(CameraConfig(camera_id="c3"))
+    assert load_camera_config("c3").outfall_point is None

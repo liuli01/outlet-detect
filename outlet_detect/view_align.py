@@ -11,7 +11,9 @@ class AlignResult:
     in_frame: bool
 
 class ViewAligner:
-    """ORB 特征匹配 + RANSAC 单应矩阵，把标定排口点映射到当前帧。"""
+    """ORB 特征匹配 + RANSAC 单应矩阵，把标定排口点映射到当前帧。
+    outfall_point 为 None（未标定排口）时只做视角校验，不映射点（mapped_point=None），
+    由 pipeline 用分割 mask 的水面质心兜底。"""
     def __init__(self, reference_frame_path, outfall_point, min_matches=12):
         self.ref = cv2.imread(reference_frame_path)
         if self.ref is None:
@@ -39,6 +41,8 @@ class ViewAligner:
         ratio = float(inliers.sum()) / len(good)
         if ratio < 0.4:  # 内点率过低说明是误匹配（无关场景），拒绝
             return AlignResult(False, None, ratio, False)
+        if self.outfall_point is None:
+            return AlignResult(True, None, ratio, True)  # 无排口点可映射，视角校验通过
         p = H @ np.array([self.outfall_point[0], self.outfall_point[1], 1.0])
         mx, my = p[0] / p[2], p[1] / p[2]
         in_frame = bool(0 <= mx < w and 0 <= my < h)

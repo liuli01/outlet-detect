@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, Response
 
 from outlet_detect.float_detector import HttpFloatDetector, filter_to_water
 from outlet_detect.reporter import annotate_discharge, annotate_float
-from outlet_detect.rois import build_rois
+from outlet_detect.rois import build_rois, mask_centroid
 from outlet_detect.rule_engine import compute_features, score, verdict
 from outlet_detect.water_seg import HttpWaterSegmenter
 
@@ -166,7 +166,7 @@ vertical-align:-2px;margin-right:8px}
   </div>
   <div class="card"><h3>参数</h3>
     <div class="params">
-      <div class="field"><label>排口点（0,0 = 样本标注点 / 画面中心）</label>
+      <div class="field"><label>排口点（0,0 = 样本标注点 / 水面质心）</label>
         <div class="row">x <input name="outfall_x" type="number" value="0" style="width:90px">
         y <input name="outfall_y" type="number" value="0" style="width:90px"></div></div>
       <div class="field"><label>漂浮物引擎（留空 = 关闭）</label>
@@ -365,13 +365,13 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
         except Exception as e:
             float_err = str(e)
 
-    # 3) 排污：优先 页面坐标 > 样本标注点 > 画面中心
+    # 3) 排污：优先 页面坐标 > 样本标注点 > 水面质心（与线上未标定时的兜底一致）
     if outfall_x or outfall_y:
         point = (outfall_x, outfall_y)
     elif marked_point:
         point = marked_point
     else:
-        point = (w // 2, h // 2)
+        point = mask_centroid(mask)
     rois = build_rois(mask, point)
     feats = compute_features(frames, rois, None)
     s = score(feats)
