@@ -1,10 +1,12 @@
-# 河道排污/漂浮物检测 —— 生产部署（定时任务 + 测试页面，纯镜像，不构建）
+# 河道排污/漂浮物检测 —— 生产部署（定时任务 + 测试页面，纯镜像 + 命名卷）
 # 用法：在 deploy/ 目录下 `docker compose up -d`（首次先 docker compose pull）
-# 配置：环境变量来自 ../.env（参考仓库根 .env.example），摄像头标定挂载 ../config/cameras
+# 配置：环境变量来自 ../.env（参考仓库根 .env.example）
+# 所有数据都放命名卷（cameras-config / detect-data / sample-images），不做宿主机目录映射；
+# 往卷里放文件的方法见 README §3（docker cp 经运行中容器写入卷）
 #
 # 推理服务 xclabel-deploy-cpu 为独立部署（本仓库 compose 不包含）：
-# 同机部署时经 host.docker.internal 访问其宿主端口映射（如 8000），
-# .env 里填 INFER_ENDPOINT=http://host.docker.internal:8000/infer
+# .env 里填 INFER_ENDPOINT=http://<服务器内网IP>:8000/infer 即可
+#（若改用 host.docker.internal 访问宿主机，需自行加 extra_hosts: host-gateway 映射）
 services:
   # 定时任务主程序：每天 10:00~15:00（容器时区 Asia/Shanghai）每 5 分钟一轮检测上报
   outlet-detect:
@@ -15,11 +17,9 @@ services:
       - ../.env
     environment:
       - TZ=Asia/Shanghai
-    extra_hosts:
-      - "host.docker.internal:host-gateway"   # Linux 下解析宿主机（推理服务在同机时用）
     volumes:
-      - ../config/cameras:/app/config/cameras:ro
-      - ../data:/app/data
+      - cameras-config:/app/config/cameras:ro   # 摄像头标定（命名卷）
+      - detect-data:/app/data                   # SQLite/归档帧/告警日志（命名卷）
     logging: &logging
       driver: json-file
       options:
@@ -42,12 +42,14 @@ services:
       - TZ=Asia/Shanghai
       - WEBAPP_HOST=0.0.0.0   # 容器内必须绑 0.0.0.0，否则宿主机访问不到
       - WEBAPP_PORT=8090
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     ports:
       - "8090:8090"
     volumes:
-      # 样本库（可选）：挂载后页面可点选 images/ 下的测试照片；不需要可删除该行
-      - ../images:/app/images:ro
+      # 样本库（可选）：页面可点选卷里的测试照片；不需要可删除该行和卷定义
+      - sample-images:/app/images:ro
     logging: *logging
 
+volumes:
+  cameras-config:      # 摄像头标定 json + 参照帧
+  detect-data:         # 业务数据（SQLite、归档帧、告警日志），升级/重建容器不丢
+  sample-images:       # 测试页样本库（可选）

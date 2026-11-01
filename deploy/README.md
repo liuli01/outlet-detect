@@ -13,7 +13,7 @@
 
 | 依赖 | 说明 |
 |---|---|
-| 推理服务 `xclabel-deploy-cpu` | 独立部署的 YOLO 推理 HTTP 服务（`/infer`），需加载水面分割引擎（如 `river/20261030_132330`）与漂浮物引擎（如 `floating/20261030_145216`）。同机部署时本系统经 `host.docker.internal` 访问其宿主端口映射 |
+| 推理服务 `xclabel-deploy-cpu` | 独立部署的 YOLO 推理 HTTP 服务（`/infer`），需加载水面分割引擎（如 `river/20261030_132330`）与漂浮物引擎（如 `floating/20261030_145216`）。同机部署时本系统经服务器内网 IP 访问其端口映射 |
 | 海康 Artemis 平台 | manualCapture 抓图（AK/SK 签名） |
 | minio | 事件图片存储（桶：`input-image`、`ai-image`） |
 | 业务平台 | `insert_ai_result` 上报接口 |
@@ -25,19 +25,18 @@
 
 服务器需安装 Docker 与 Docker Compose 插件，能访问 ghcr.io（拉镜像）与前置依赖表里的所有服务（推理服务、海康平台、minio、上报平台）。
 
-**纯镜像部署，不需要拉源码**，只需准备如下目录结构：
+**纯镜像部署，不需要拉源码**，服务器上只需要两个文件：
 
 ```
 outlet-detect/
 ├── .env                          # 部署配置（见第 2 步）
-├── config/cameras/*.json         # 摄像头标定（见第 3 步）
-├── data/                         # 运行时自动创建（SQLite/归档帧）
-├── images/                       # 可选：测试页样本库
 └── deploy/docker-compose.yml     # 从仓库取这一个文件
 ```
 
+摄像头标定、业务数据、样本库全部放 Docker 命名卷（`cameras-config` / `detect-data` / `sample-images`），不做宿主机目录映射；卷在首次 `up` 时自动创建，文件写入方法见第 3 步。
+
 ```bash
-mkdir -p outlet-detect/deploy outlet-detect/config/cameras
+mkdir -p outlet-detect/deploy
 cd outlet-detect
 # 下载 compose 文件（仓库是公开的，无需登录）
 curl -L -o deploy/docker-compose.yml \
@@ -63,15 +62,16 @@ MINIO_AK=<access-key>
 MINIO_SK=<secret-key>
 REPORT_URL=http://<平台host>/api/insert_ai_result
 EXTERNAL_HOST=<外网host>:<minio外网端口>
-INFER_ENDPOINT=http://host.docker.internal:8000/infer
+INFER_ENDPOINT=http://<服务器内网IP>:8000/infer
 ```
 
 注意：
 
 - `EXTERNAL_HOST` 必须带端口（整体替换 minio 内网 host:port，与外网 NAT 映射一致）
 - `INFER_ENDPOINT`（水面分割 + 漂浮物共用的推理服务地址）：
-  - 推理服务**同机独立部署**（如 `xclabel-deploy-cpu` 映射 `8000:8000`）：填 `http://host.docker.internal:8000/infer`——compose 已为两个容器配置 `host-gateway`，容器内经宿主端口映射访问
+  - 推理服务**同机独立部署**（如 `xclabel-deploy-cpu` 映射 `8000:8000`）：填 `http://<服务器内网IP>:8000/infer`，容器经宿主机网关访问 published 端口
   - 推理服务在**另一台机器**：填 `http://<推理机IP>:8000/infer`
+  - 也可填 `http://host.docker.internal:8000/infer`，但需在 compose 两个服务下各加一行 `extra_hosts: ["host.docker.internal:host-gateway"]`
 - VLM 终判配置（可选）：
 
 ```
@@ -81,9 +81,9 @@ VLM_MODEL=                   # 公司网关路由默认模型可留空
 VLM_ENVELOPE=true            # 公司网关包装格式；标准 OpenAI 填 false
 ```
 
-### 3. 摄像头标定 `config/cameras/<indexCode>.json`
+### 3. 摄像头标定
 
-每个摄像头一个文件（已 gitignore），关键字段：
+每个摄像头一个 json，字段示例：
 
 ```json
 {
@@ -98,10 +98,24 @@ VLM_ENVELOPE=true            # 公司网关包装格式；标准 OpenAI 填 fals
 ```
 
 - `outfall_point`：排口像素坐标，用标定工具在参照帧上取点
-- `reference_frame`：标定参照帧路径（相对仓库根，放 `data/reference/` 随 data 卷持久化）；缺失/损坏时该摄像头自动挂起（view_error），不影响其他摄像头
+- `reference_frame`：标定参照帧，**容器内路径** `/app/data/reference/` 下（即 `detect-data` 卷）；缺失/损坏时该摄像头自动挂起（view_error），不影响其他摄像头
 - `float_engine_id`：留空则该摄像头关闭漂浮物检测
 - `float_confidence`：建议 0.3（验证集实测检出置信 0.48~0.85，默认 0.6 会漏检）
 - `hik_body.cameraIndexCode` 为空的文件会被当作辅助配置跳过
+
+标定 json 放 `cameras-config` 卷、参照帧放 `detect-data` 卷的 `reference/` 子目录。先启动一次容器（第 4 步），再用 `docker cp` 经运行中的容器写入卷：
+
+```bash
+# 写入摄像头标定（本地的 <indexCode>.json）
+docker cp <indexCode>.json outlet-detect:/app/config/cameras/
+
+# 写入参照帧
+docker compose -f deploy/docker-compose.yml exec outlet-detect mkdir -p /app/data/reference
+docker cp <indexCode>.jpg outlet-detect:/app/data/reference/
+
+# 改完配置重启生效
+cd deploy && docker compose restart outlet-detect
+```
 
 ### 4. 启动
 
@@ -113,18 +127,18 @@ docker compose ps                # 确认两个容器都在运行
 docker compose logs -f           # 跟日志（Ctrl+C 退出不影响运行）
 ```
 
-启动前先确认推理服务（独立部署的 `xclabel-deploy-cpu`）已运行且两个引擎已加载，再验证容器内可达：
+启动前先确认推理服务（独立部署的 `xclabel-deploy-cpu`）已运行且两个引擎已加载，再验证容器内可达（URL 换成 `.env` 里实际填的）：
 
 ```bash
-# 容器内经宿主机访问推理服务（验证 host.docker.internal 通路）
+# 容器内访问推理服务
 docker compose exec outlet-detect uv run --no-sync python -c \
-  "import requests; r=requests.post('http://host.docker.internal:8000/infer', json={'engine_id':'river/20261030_132330','image':''}, timeout=5); print(r.status_code)"
+  "import requests; r=requests.post('http://<服务器内网IP>:8000/infer', json={'engine_id':'river/20261030_132330','image':''}, timeout=5); print(r.status_code)"
 ```
 
 测试页面：浏览器打开 `http://<服务器IP>:8090`，上传照片或点选样本库即可看到分割/漂浮物/排污结果与标注图。
 
 > **安全提示**：测试页面无鉴权，生产环境请用防火墙/安全组把 8090 限制在内网或运维网段。
-> 不需要样本库时可删掉 compose 里 test-page 的 `../images:/app/images:ro` 挂载行（页面仍支持上传照片测试）。
+> 不需要样本库时可删掉 compose 里 test-page 的 `sample-images:/app/images:ro` 挂载行（页面仍支持上传照片测试）。要往样本卷放照片：`docker cp <照片> outlet-detect-testpage:/app/images/`
 
 ### 5. 日常运维
 
@@ -136,7 +150,7 @@ docker compose down                    # 停止全部
 ```
 
 - 摄像头配置、`.env` 改动都需要 `restart` 才生效（配置在启动时加载）
-- `data/` 目录（SQLite、归档帧、告警日志）挂载在宿主机，升级/重建容器不丢数据
+- 业务数据（SQLite、归档帧、告警日志）在命名卷 `deploy_detect-data` 里，升级/重建容器不丢数据；查看内容：`docker compose exec outlet-detect ls /app/data`
 - 单容器日志已限制 10MB×3 滚动，不会撑爆磁盘
 
 ### 打 tag 发布镜像（开发侧）
@@ -160,11 +174,13 @@ uv run python -m outlet_detect.webapp  # 测试台：http://127.0.0.1:8090
 
 ## 验证与排查
 
+以下 `data/` 路径在容器内为 `/app/data/`（命名卷 `deploy_detect-data`），用 `docker compose exec outlet-detect ...` 查看：
+
 - 上报成败持久化在每个摄像头的 `data/<cid>.db` 的 `reports` 表（ok/error 字段）
 - 排污判定明细在 `samples` 表（特征值/score/verdict/VLM 结果）
 - 告警日志 `data/<cid>_alerts.log`，归档帧 `data/archive/<cid>/`
-- 离线验证：`uv run python tools/validate_images.py`（排污）、`uv run python tools/validate_float.py [阈值]`（漂浮物）
-- 回放调试：`uv run python main.py --replay <视频路径>`
+- 离线验证（本地开发机）：`uv run python tools/validate_images.py`（排污）、`uv run python tools/validate_float.py [阈值]`（漂浮物）
+- 回放调试（本地开发机）：`uv run python main.py --replay <视频路径>`
 - 容器内验证时区：`docker compose exec outlet-detect date` 应显示 CST（调度窗口按此时区判断）
 
 ## 上报字段约定
