@@ -125,9 +125,12 @@ box-shadow:0 8px 40px rgba(0,0,0,.5)}
 .legend{display:flex;flex-wrap:wrap;gap:10px 14px;font-size:12px;color:var(--sub);margin-bottom:12px}
 .lg{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;
 vertical-align:-1px}
-.swapbtn{background:#fff;border:1px solid var(--line);border-radius:8px;color:var(--accent);
-padding:5px 14px;font-size:12px;cursor:pointer;margin-right:8px;transition:all .15s}
-.swapbtn:hover{border-color:var(--accent);background:#eef4ff}
+.swapbtn{background:rgba(255,255,255,.92);border:1px solid var(--line);border-radius:8px;
+color:var(--accent);padding:5px 14px;font-size:12px;cursor:pointer;
+box-shadow:0 1px 4px rgba(0,0,0,.25);transition:all .15s}
+.swapbtn:hover{border-color:var(--accent);background:#fff}
+.imgbox{position:relative}
+.imgbox .swapbtn{position:absolute;top:10px;right:10px}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid #c7d6f5;
 border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite;
 vertical-align:-2px;margin-right:8px}
@@ -430,14 +433,16 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
   <span><span class="lg" style="background:#ef4444"></span>红框 = 漂浮物</span>
   <span><span class="lg" style="background:#d946ef"></span>紫叉 = 排口点</span>
 </div>
+<div class="imgbox">
 <img class="out" title="点击放大" data-showing="ann"
   data-ann="data:image/jpeg;base64,{_b64img(ann)}"
   data-orig="data:image/jpeg;base64,{_b64img(img)}"
   src="data:image/jpeg;base64,{_b64img(ann)}">
-<p class="hint" style="margin:8px 0 0"><button class="swapbtn"
+<button class="swapbtn"
   onclick="var i=this.closest('.card').querySelector('img.out');var s=i.getAttribute('data-showing')==='orig';i.src=s?i.getAttribute('data-ann'):i.getAttribute('data-orig');i.setAttribute('data-showing',s?'ann':'orig');this.textContent=s?'查看原图':'切换回标注图';"
 >查看原图</button>
-点击图片全屏查看，Esc 或点击空白处关闭</p>
+</div>
+<p class="hint" style="margin:8px 0 0">点击图片全屏查看，Esc 或点击空白处关闭</p>
 </div>"""
 
 
