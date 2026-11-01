@@ -1,7 +1,27 @@
-# 河道排污/漂浮物检测 —— 生产部署（定时任务 + 测试页面）
+# 河道排污/漂浮物检测 —— 生产部署（推理服务 + 定时任务 + 测试页面）
 # 用法：在 deploy/ 目录下 `docker compose up -d`
 # 配置：环境变量来自 ../.env（参考仓库根 .env.example），摄像头标定挂载 ../config/cameras
 services:
+  # YOLO 推理服务（水面分割 + 漂浮物引擎）。同一 compose 网络内，
+  # 其他容器用服务名访问：http://xclabel-deploy-cpu:8000/infer（写进 ../.env 的 INFER_ENDPOINT）
+  xclabel-deploy-cpu:
+    container_name: xclabel-deploy-cpu
+    image: registry.cn-beijing.aliyuncs.com/liuli01/xclabel-deploy:v1.0.6
+    restart: unless-stopped
+    ports:
+      - "8000:8000"        # 暴露给宿主机/其他机器；本系统容器间访问不需要它
+    environment:
+      - SERVER_URL=http://47.93.53.93:39924
+      - CACHE_DIR=/app/cache
+      - MAX_ENGINES=10
+    volumes:
+      - deploy-cache-cpu:/app/cache
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # 定时任务主程序：每天 10:00~15:00（容器时区 Asia/Shanghai）每 5 分钟一轮检测上报
   outlet-detect:
     build:
@@ -17,11 +37,9 @@ services:
     volumes:
       - ../config/cameras:/app/config/cameras:ro
       - ../data:/app/data
-    logging: &logging
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
+    depends_on:
+      - xclabel-deploy-cpu
+    logging: *logging
     # 系统无外露端口；依赖外部服务（地址见 ../.env）：
     #   - 推理服务 INFER_ENDPOINT（水面分割 + 漂浮物引擎）
     #   - 海康 Artemis 平台、minio、业务上报平台、VLM（可选）
@@ -47,4 +65,10 @@ services:
     volumes:
       # 样本库（可选）：挂载后页面可点选 images/ 下的测试照片；不需要可删除该行
       - ../images:/app/images:ro
+    depends_on:
+      - xclabel-deploy-cpu
     logging: *logging
+
+volumes:
+  deploy-cache-cpu:        # 推理引擎缓存，重建容器不重复下载
+
