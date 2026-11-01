@@ -125,7 +125,9 @@ def main():
         replay(args.replay)
     else:
         from outlet_detect.scheduler import run_loop
-        run_loop(build_pipelines(), active_hours=(10, 15))
+        pipes = build_pipelines()  # 内部会 load_dotenv，之后才能读 .env 里的调度参数
+        interval = int(os.environ.get("RUN_INTERVAL_SEC", "300"))
+        run_loop(pipes, active_hours=(10, 15), interval_sec=interval)
 
 
 if __name__ == "__main__":

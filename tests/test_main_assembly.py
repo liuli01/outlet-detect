@@ -116,3 +116,31 @@ def test_camera_list_failure_keeps_existing(tmp_path, monkeypatch):
         encoding="utf-8")
     pipes = build_pipelines()                  # 不抛异常
     assert list(pipes) == ["camA"]
+
+
+def test_main_reads_run_interval_env(tmp_path, monkeypatch):
+    """RUN_INTERVAL_SEC 环境变量控制调度间隔；.env 在 build_pipelines 内加载。"""
+    import main as m
+    seen = {}
+    monkeypatch.setenv("RUN_INTERVAL_SEC", "600")
+    monkeypatch.setattr(m, "build_pipelines", lambda: {})
+    def fake_run_loop(pipes, active_hours=None, interval_sec=300, **kw):
+        seen["interval"] = interval_sec
+        seen["hours"] = active_hours
+    monkeypatch.setattr("outlet_detect.scheduler.run_loop", fake_run_loop)
+    monkeypatch.setattr("sys.argv", ["main.py"])
+    m.main()
+    assert seen == {"interval": 600, "hours": (10, 15)}
+
+
+def test_main_default_interval_300(tmp_path, monkeypatch):
+    import main as m
+    seen = {}
+    monkeypatch.delenv("RUN_INTERVAL_SEC", raising=False)
+    monkeypatch.setattr(m, "build_pipelines", lambda: {})
+    monkeypatch.setattr("outlet_detect.scheduler.run_loop",
+                        lambda pipes, active_hours=None, interval_sec=300, **kw:
+                        seen.update(interval=interval_sec))
+    monkeypatch.setattr("sys.argv", ["main.py"])
+    m.main()
+    assert seen["interval"] == 300
