@@ -55,7 +55,7 @@ background:var(--bg);color:var(--txt);margin:0;padding:32px 16px 64px}
 header.top{margin-bottom:22px}
 h1{font-size:22px;margin:0 0 4px}
 .tagline{color:var(--sub);font-size:13px}
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 680px;gap:18px;align-items:start}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
 .col-side{position:sticky;top:24px}
 @media (max-width:1200px){.layout{grid-template-columns:1fr}.col-side{position:static}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
