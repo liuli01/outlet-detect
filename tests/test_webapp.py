@@ -37,7 +37,8 @@ def test_upload_runs_detection(client, monkeypatch, jpg_bytes):
     monkeypatch.setattr(webapp, "make_segmenter", lambda: FakeSeg())
     monkeypatch.setattr(webapp, "make_detector", lambda e, c: _FakeDet())
     r = client.post("/test", files={"image": ("a.jpg", jpg_bytes, "image/jpeg")},
-                    data={"outfall_x": "150", "outfall_y": "150"})
+                    data={"outfall_x": "150", "outfall_y": "150",
+                          "float_engine": "floating/test"})
     assert r.status_code == 200
     assert "检测结果" in r.text
     assert "综合评分" in r.text
@@ -100,7 +101,8 @@ def test_sample_img_serves_and_guards(client, sample_tree):
 def test_test_with_sample_path(client, monkeypatch, sample_tree):
     monkeypatch.setattr(webapp, "make_segmenter", lambda: FakeSeg())
     monkeypatch.setattr(webapp, "make_detector", lambda e, c: _FakeDet())
-    r = client.post("/test", data={"sample_path": "排污/g1"})
+    r = client.post("/test", data={"sample_path": "排污/g1",
+                                   "float_engine": "floating/test"})
     assert r.status_code == 200
     assert "样本组 g1（5 帧）" in r.text  # 真实5连帧而非复制
     assert "检测结果" in r.text

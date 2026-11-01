@@ -51,13 +51,13 @@ PAGE = """<!doctype html>
 *{box-sizing:border-box}
 body{font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif;
 background:var(--bg);color:var(--txt);margin:0;padding:32px 16px 64px}
-.wrap{max-width:1280px;margin:0 auto}
+.wrap{max-width:1600px;margin:0 auto}
 header.top{margin-bottom:22px}
 h1{font-size:22px;margin:0 0 4px}
 .tagline{color:var(--sub);font-size:13px}
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 560px;gap:18px;align-items:start}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 680px;gap:18px;align-items:start}
 .col-side{position:sticky;top:24px}
-@media (max-width:1100px){.layout{grid-template-columns:1fr}.col-side{position:static}}
+@media (max-width:1200px){.layout{grid-template-columns:1fr}.col-side{position:static}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
 box-shadow:var(--shadow);padding:20px 22px;margin-bottom:18px}
 .card>h3{margin:0 0 14px;font-size:15px;display:flex;align-items:center;gap:8px}
@@ -125,6 +125,9 @@ box-shadow:0 8px 40px rgba(0,0,0,.5)}
 .legend{display:flex;flex-wrap:wrap;gap:10px 14px;font-size:12px;color:var(--sub);margin-bottom:12px}
 .lg{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;
 vertical-align:-1px}
+.swapbtn{background:#fff;border:1px solid var(--line);border-radius:8px;color:var(--accent);
+padding:5px 14px;font-size:12px;cursor:pointer;margin-right:8px;transition:all .15s}
+.swapbtn:hover{border-color:var(--accent);background:#eef4ff}
 .spin{display:inline-block;width:14px;height:14px;border:2px solid #c7d6f5;
 border-top-color:var(--accent);border-radius:50%;animation:rot .8s linear infinite;
 vertical-align:-2px;margin-right:8px}
@@ -174,7 +177,7 @@ async function submitForm(){
   var f=document.getElementById('tform');
   GO.disabled=true;
   RES.innerHTML='<div class="card"><h3>检测中…</h3><p class="hint"><span class="spin"></span>正在调用分割 / 检测服务，通常几秒钟</p></div>';
-  if(window.innerWidth<=1100)RES.scrollIntoView({behavior:'smooth'});
+  if(window.innerWidth<=1200)RES.scrollIntoView({behavior:'smooth'});
   try{
     var r=await fetch('/test',{method:'POST',body:new FormData(f)});
     RES.innerHTML=await r.text();
@@ -187,9 +190,18 @@ document.getElementById('tform').addEventListener('submit',function(e){e.prevent
 function pick(p){var f=document.getElementById('tform');f.sample_path.value=p;
   f.querySelector('input[type=file]').value='';
   document.getElementById('fname').textContent='';submitForm();}
-/* 标注图点击放大：事件委托（结果图是后注入的） */
+/* 标注图/原图切换 + 点击放大：事件委托（结果图是后注入的，片段里的script不会执行） */
 var Z=document.getElementById('zoom'),ZI=Z.querySelector('img');
 document.addEventListener('click',function(e){
+  if(e.target.matches('.swapbtn')){
+    var img=e.target.parentElement.querySelector('img.out');
+    var showing=img.getAttribute('data-showing')||'ann';
+    if(showing==='ann'){img.src=img.getAttribute('data-orig');img.setAttribute('data-showing','orig');
+      e.target.textContent='切换回标注图';}
+    else{img.src=img.getAttribute('data-ann');img.setAttribute('data-showing','ann');
+      e.target.textContent='查看原图';}
+    return;
+  }
   if(e.target.matches('img.out')){ZI.src=e.target.src;Z.classList.add('on');}
 });
 Z.addEventListener('click',function(){Z.classList.remove('on');});
@@ -308,7 +320,7 @@ def _errbox(msg: str) -> str:
 @app.post("/test", response_class=HTMLResponse)
 async def test(image: UploadFile | None = File(None), sample_path: str = Form(""),
                outfall_x: int = Form(0), outfall_y: int = Form(0),
-               float_engine: str = Form(DEFAULT_FLOAT_ENGINE),
+               float_engine: str = Form(""),  # 主页输入框已预填默认引擎；留空=关闭
                float_conf: float = Form(0.3)):
     # 帧来源：上传文件 或 样本库
     src_desc = "上传照片（复制5帧，波动=0）"
@@ -377,6 +389,16 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
     verdict_cn = {"normal": "正常", "gray": "灰色（线上送 CNN/VLM 终判）",
                   "suspect": "疑似排污"}.get(v, v)
     vcls = {"normal": "ok", "gray": "warn", "suspect": "bad"}.get(v, "ok")
+    # 漂浮物判定：与线上一致，只计水面范围内检出（线上还需状态机连续确认才上报）
+    if not float_engine.strip():
+        float_cn, fcls = "未启用", "ok"
+    elif float_err:
+        float_cn, fcls = "检测异常", "warn"
+    elif dets:
+        float_cn = f"有漂浮物（最高 {max(d.confidence for d in dets):.2f}）"
+        fcls = "bad"
+    else:
+        float_cn, fcls = "无漂浮物", "ok"
     # 结果为 HTML 片段：主页 fetch 后注入右侧 #result 面板，样式由主页提供
     return f"""<div class="card"><h3>检测结果</h3>
 <div class="meta">帧来源：{html.escape(src_desc)} ｜ 排口点 {point}</div>
@@ -384,6 +406,7 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
   <div class="stat"><div class="k">水面覆盖率</div><div class="v">{water_pct:.1f}%</div></div>
   <div class="stat"><div class="k">综合评分</div><div class="v">{s:.3f}</div></div>
   <div class="stat"><div class="k">排污判定</div><div class="v"><span class="pill {vcls}">{verdict_cn}</span></div></div>
+  <div class="stat"><div class="k">漂浮物判定</div><div class="v"><span class="pill {fcls}">{float_cn}</span></div></div>
 </div></div>
 
 <div class="card"><h3>漂浮物（水面范围内 {len(dets)} / 总检出 {len(dets_all)}）</h3>
@@ -406,8 +429,12 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
   <span><span class="lg" style="background:#ef4444"></span>红框 = 漂浮物</span>
   <span><span class="lg" style="background:#d946ef"></span>紫叉 = 排口点</span>
 </div>
-<img class="out" title="点击放大" src="data:image/jpeg;base64,{_b64img(ann)}">
-<p class="hint" style="margin:8px 0 0">点击图片全屏查看，Esc 或点击空白处关闭</p>
+<img class="out" title="点击放大" data-showing="ann"
+  data-ann="data:image/jpeg;base64,{_b64img(ann)}"
+  data-orig="data:image/jpeg;base64,{_b64img(img)}"
+  src="data:image/jpeg;base64,{_b64img(ann)}">
+<p class="hint" style="margin:8px 0 0"><button class="swapbtn">查看原图</button>
+点击图片全屏查看，Esc 或点击空白处关闭</p>
 </div>"""
 
 
