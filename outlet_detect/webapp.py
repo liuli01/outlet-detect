@@ -202,18 +202,9 @@ document.getElementById('tform').addEventListener('submit',function(e){e.prevent
 function pick(p){var f=document.getElementById('tform');f.sample_path.value=p;
   f.querySelector('input[type=file]').value='';
   document.getElementById('fname').textContent='';submitForm();}
-/* 标注图/原图切换 + 点击放大：事件委托（结果图是后注入的，片段里的script不会执行） */
+/* 标注图点击放大：事件委托（结果图是后注入的；原图切换用片段内联onclick，不依赖本页JS） */
 var Z=document.getElementById('zoom'),ZI=Z.querySelector('img');
 document.addEventListener('click',function(e){
-  if(e.target.matches('.swapbtn')){
-    var img=e.target.closest('.card').querySelector('img.out');
-    var showing=img.getAttribute('data-showing')||'ann';
-    if(showing==='ann'){img.src=img.getAttribute('data-orig');img.setAttribute('data-showing','orig');
-      e.target.textContent='切换回标注图';}
-    else{img.src=img.getAttribute('data-ann');img.setAttribute('data-showing','ann');
-      e.target.textContent='查看原图';}
-    return;
-  }
   if(e.target.matches('img.out')){ZI.src=e.target.src;Z.classList.add('on');}
 });
 Z.addEventListener('click',function(){Z.classList.remove('on');});
@@ -306,7 +297,9 @@ def index():
     else:
         gallery = ("<div class='card'><h3>样本库</h3>"
                    "<p class='hint'>未找到 images/ 目录（本地测试数据，不入库）</p></div>")
-    return PAGE.replace("__ENGINE__", DEFAULT_FLOAT_ENGINE).replace("__GALLERY__", gallery)
+    return HTMLResponse(
+        PAGE.replace("__ENGINE__", DEFAULT_FLOAT_ENGINE).replace("__GALLERY__", gallery),
+        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/sample_img")
@@ -441,7 +434,9 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
   data-ann="data:image/jpeg;base64,{_b64img(ann)}"
   data-orig="data:image/jpeg;base64,{_b64img(img)}"
   src="data:image/jpeg;base64,{_b64img(ann)}">
-<p class="hint" style="margin:8px 0 0"><button class="swapbtn">查看原图</button>
+<p class="hint" style="margin:8px 0 0"><button class="swapbtn"
+  onclick="var i=this.closest('.card').querySelector('img.out');var s=i.getAttribute('data-showing')==='orig';i.src=s?i.getAttribute('data-ann'):i.getAttribute('data-orig');i.setAttribute('data-showing',s?'ann':'orig');this.textContent=s?'查看原图':'切换回标注图';"
+>查看原图</button>
 点击图片全屏查看，Esc 或点击空白处关闭</p>
 </div>"""
 
