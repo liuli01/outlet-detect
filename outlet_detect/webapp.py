@@ -55,9 +55,9 @@ background:var(--bg);color:var(--txt);margin:0;padding:32px 16px 64px}
 header.top{margin-bottom:22px}
 h1{font-size:22px;margin:0 0 4px}
 .tagline{color:var(--sub);font-size:13px}
-.layout{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:18px;align-items:start}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 560px;gap:18px;align-items:start}
 .col-side{position:sticky;top:24px}
-@media (max-width:980px){.layout{grid-template-columns:1fr}.col-side{position:static}}
+@media (max-width:1100px){.layout{grid-template-columns:1fr}.col-side{position:static}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
 box-shadow:var(--shadow);padding:20px 22px;margin-bottom:18px}
 .card>h3{margin:0 0 14px;font-size:15px;display:flex;align-items:center;gap:8px}
@@ -115,7 +115,13 @@ tr.keep td:first-child{color:#15803d}
 tr.drop td:first-child{color:#b91c1c}
 td.empty{color:var(--sub);text-align:center}
 .errbox{color:#b91c1c;background:#fee2e2;border-radius:8px;padding:10px 14px;font-size:13px;margin:0}
-img.out{max-width:100%;border-radius:8px;border:1px solid var(--line);display:block}
+img.out{max-width:100%;border-radius:8px;border:1px solid var(--line);display:block;
+cursor:zoom-in}
+#zoom{position:fixed;inset:0;background:rgba(8,12,20,.88);display:none;
+align-items:center;justify-content:center;z-index:99;cursor:zoom-out;padding:24px}
+#zoom.on{display:flex}
+#zoom img{max-width:96vw;max-height:94vh;border-radius:8px;
+box-shadow:0 8px 40px rgba(0,0,0,.5)}
 .legend{display:flex;flex-wrap:wrap;gap:10px 14px;font-size:12px;color:var(--sub);margin-bottom:12px}
 .lg{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;
 vertical-align:-1px}
@@ -168,7 +174,7 @@ async function submitForm(){
   var f=document.getElementById('tform');
   GO.disabled=true;
   RES.innerHTML='<div class="card"><h3>检测中…</h3><p class="hint"><span class="spin"></span>正在调用分割 / 检测服务，通常几秒钟</p></div>';
-  if(window.innerWidth<=980)RES.scrollIntoView({behavior:'smooth'});
+  if(window.innerWidth<=1100)RES.scrollIntoView({behavior:'smooth'});
   try{
     var r=await fetch('/test',{method:'POST',body:new FormData(f)});
     RES.innerHTML=await r.text();
@@ -181,7 +187,15 @@ document.getElementById('tform').addEventListener('submit',function(e){e.prevent
 function pick(p){var f=document.getElementById('tform');f.sample_path.value=p;
   f.querySelector('input[type=file]').value='';
   document.getElementById('fname').textContent='';submitForm();}
+/* 标注图点击放大：事件委托（结果图是后注入的） */
+var Z=document.getElementById('zoom'),ZI=Z.querySelector('img');
+document.addEventListener('click',function(e){
+  if(e.target.matches('img.out')){ZI.src=e.target.src;Z.classList.add('on');}
+});
+Z.addEventListener('click',function(){Z.classList.remove('on');});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')Z.classList.remove('on');});
 </script>
+<div id="zoom"><img alt="放大查看"></div>
 </div></body></html>"""
 
 
@@ -392,7 +406,8 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
   <span><span class="lg" style="background:#ef4444"></span>红框 = 漂浮物</span>
   <span><span class="lg" style="background:#d946ef"></span>紫叉 = 排口点</span>
 </div>
-<img class="out" src="data:image/jpeg;base64,{_b64img(ann)}">
+<img class="out" title="点击放大" src="data:image/jpeg;base64,{_b64img(ann)}">
+<p class="hint" style="margin:8px 0 0">点击图片全屏查看，Esc 或点击空白处关闭</p>
 </div>"""
 
 
