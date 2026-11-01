@@ -1,32 +1,13 @@
-# 河道排污/漂浮物检测 —— 生产部署（推理服务 + 定时任务 + 测试页面）
-# 用法：在 deploy/ 目录下 `docker compose up -d`
+# 河道排污/漂浮物检测 —— 生产部署（定时任务 + 测试页面，纯镜像，不构建）
+# 用法：在 deploy/ 目录下 `docker compose up -d`（首次先 docker compose pull）
 # 配置：环境变量来自 ../.env（参考仓库根 .env.example），摄像头标定挂载 ../config/cameras
+#
+# 推理服务 xclabel-deploy-cpu 为独立部署（本仓库 compose 不包含）：
+# 同机部署时经 host.docker.internal 访问其宿主端口映射（如 8000），
+# .env 里填 INFER_ENDPOINT=http://host.docker.internal:8000/infer
 services:
-  # YOLO 推理服务（水面分割 + 漂浮物引擎）。同一 compose 网络内，
-  # 其他容器用服务名访问：http://xclabel-deploy-cpu:8000/infer（写进 ../.env 的 INFER_ENDPOINT）
-  xclabel-deploy-cpu:
-    container_name: xclabel-deploy-cpu
-    image: registry.cn-beijing.aliyuncs.com/liuli01/xclabel-deploy:v1.0.6
-    restart: unless-stopped
-    ports:
-      - "8000:8000"        # 暴露给宿主机/其他机器；本系统容器间访问不需要它
-    environment:
-      - SERVER_URL=http://47.93.53.93:39924
-      - CACHE_DIR=/app/cache
-      - MAX_ENGINES=10
-    volumes:
-      - deploy-cache-cpu:/app/cache
-    logging: &logging
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   # 定时任务主程序：每天 10:00~15:00（容器时区 Asia/Shanghai）每 5 分钟一轮检测上报
   outlet-detect:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
     image: ghcr.io/liuli01/outlet-detect:latest
     container_name: outlet-detect
     restart: unless-stopped
@@ -34,12 +15,16 @@ services:
       - ../.env
     environment:
       - TZ=Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux 下解析宿主机（推理服务在同机时用）
     volumes:
       - ../config/cameras:/app/config/cameras:ro
       - ../data:/app/data
-    depends_on:
-      - xclabel-deploy-cpu
-    logging: *logging
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # 系统无外露端口；依赖外部服务（地址见 ../.env）：
     #   - 推理服务 INFER_ENDPOINT（水面分割 + 漂浮物引擎）
     #   - 海康 Artemis 平台、minio、业务上报平台、VLM（可选）
@@ -47,9 +32,6 @@ services:
   # 测试页面：上传照片/点选样本在线测漂浮物与排污检测
   # 浏览器打开 http://<服务器IP>:8090（无鉴权，请用防火墙限制内网访问）
   test-page:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
     image: ghcr.io/liuli01/outlet-detect:latest
     container_name: outlet-detect-testpage
     restart: unless-stopped
@@ -60,15 +42,12 @@ services:
       - TZ=Asia/Shanghai
       - WEBAPP_HOST=0.0.0.0   # 容器内必须绑 0.0.0.0，否则宿主机访问不到
       - WEBAPP_PORT=8090
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8090:8090"
     volumes:
       # 样本库（可选）：挂载后页面可点选 images/ 下的测试照片；不需要可删除该行
       - ../images:/app/images:ro
-    depends_on:
-      - xclabel-deploy-cpu
     logging: *logging
-
-volumes:
-  deploy-cache-cpu:        # 推理引擎缓存，重建容器不重复下载
 

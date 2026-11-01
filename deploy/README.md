@@ -2,11 +2,10 @@
 
 河道排污 + 漂浮物检测系统。每天 10:00~15:00（Asia/Shanghai 时区）每 5 分钟一轮：海康球机 5 连帧截图 → 水面分割（推理服务）→ 漂浮物检测（水面范围内）→ 排污三级漏斗（规则引擎 → CNN → VLM 终判）→ 三连确认后 minio 存图 + 业务平台上报。
 
-生产部署包含三个常驻容器（同一 compose 网络，容器间用服务名互访）：
+生产部署包含两个常驻容器（推理服务 `xclabel-deploy-cpu` 独立部署，不在本 compose 内）：
 
 | 容器 | 作用 | 端口 |
 |---|---|---|
-| `xclabel-deploy-cpu` | YOLO 推理服务（水面分割 + 漂浮物引擎） | `8000` |
 | `outlet-detect` | 定时任务主程序（采样→检测→上报） | 无外露 |
 | `outlet-detect-testpage` | 测试页面（上传照片/样本库在线测检测效果） | `8090` |
 
@@ -14,7 +13,7 @@
 
 | 依赖 | 说明 |
 |---|---|
-| 推理服务 | compose 内置的 `xclabel-deploy-cpu`（也可独立部署，见下文"推理服务分开部署"）。需在其管理平台（`SERVER_URL`）上为服务加载水面分割引擎（如 `river/20261030_132330`）与漂浮物引擎（如 `floating/20261030_145216`） |
+| 推理服务 `xclabel-deploy-cpu` | 独立部署的 YOLO 推理 HTTP 服务（`/infer`），需加载水面分割引擎（如 `river/20261030_132330`）与漂浮物引擎（如 `floating/20261030_145216`）。同机部署时本系统经 `host.docker.internal` 访问其宿主端口映射 |
 | 海康 Artemis 平台 | manualCapture 抓图（AK/SK 签名） |
 | minio | 事件图片存储（桶：`input-image`、`ai-image`） |
 | 业务平台 | `insert_ai_result` 上报接口 |
@@ -24,21 +23,36 @@
 
 ### 1. 准备
 
-服务器需安装 Docker 与 Docker Compose 插件，并能访问上表所有外部服务（推理服务、海康平台、minio、上报平台）。
+服务器需安装 Docker 与 Docker Compose 插件，能访问 ghcr.io（拉镜像）与前置依赖表里的所有服务（推理服务、海康平台、minio、上报平台）。
+
+**纯镜像部署，不需要拉源码**，只需准备如下目录结构：
+
+```
+outlet-detect/
+├── .env                          # 部署配置（见第 2 步）
+├── config/cameras/*.json         # 摄像头标定（见第 3 步）
+├── data/                         # 运行时自动创建（SQLite/归档帧）
+├── images/                       # 可选：测试页样本库
+└── deploy/docker-compose.yml     # 从仓库取这一个文件
+```
 
 ```bash
-# 方式 A：拉源码（可自行构建镜像）
-git clone https://github.com/liuli01/outlet-detect.git
+mkdir -p outlet-detect/deploy outlet-detect/config/cameras
 cd outlet-detect
-
-# 方式 B：不拉源码，只取部署文件（使用 ghcr.io 预构建镜像）
-mkdir outlet-detect && cd outlet-detect
-# 下载 deploy/docker-compose.yml、deploy/Dockerfile 与 .env.example 到对应位置
+# 下载 compose 文件（仓库是公开的，无需登录）
+curl -L -o deploy/docker-compose.yml \
+  https://raw.githubusercontent.com/liuli01/outlet-detect/main/deploy/docker-compose.yml
+# 登录 ghcr（公开镜像可跳过；若仓库转私有则需要）
+# docker login ghcr.io -u <github用户名>
 ```
 
 ### 2. 配置 `.env`
 
-复制仓库根的 `.env.example` 为 `.env` 并填入真实值（该文件已 gitignore）：
+```bash
+curl -L -o .env https://raw.githubusercontent.com/liuli01/outlet-detect/main/.env.example
+```
+
+然后编辑 `.env` 填入真实值（该文件已 gitignore）：
 
 ```
 HIK_BASE_URL=https://<artemis-host>:14443
@@ -49,13 +63,15 @@ MINIO_AK=<access-key>
 MINIO_SK=<secret-key>
 REPORT_URL=http://<平台host>/api/insert_ai_result
 EXTERNAL_HOST=<外网host>:<minio外网端口>
-INFER_ENDPOINT=http://xclabel-deploy-cpu:8000/infer
+INFER_ENDPOINT=http://host.docker.internal:8000/infer
 ```
 
 注意：
 
 - `EXTERNAL_HOST` 必须带端口（整体替换 minio 内网 host:port，与外网 NAT 映射一致）
-- `INFER_ENDPOINT`：compose 内置推理服务时填**容器服务名** `http://xclabel-deploy-cpu:8000/infer`（同一 compose 网络内容器名即主机名，注意端口是容器内部的 8000，不是宿主映射端口）。推理服务独立部署在其他机器时，填 `http://<那台机器IP>:<映射端口>/infer`
+- `INFER_ENDPOINT`（水面分割 + 漂浮物共用的推理服务地址）：
+  - 推理服务**同机独立部署**（如 `xclabel-deploy-cpu` 映射 `8000:8000`）：填 `http://host.docker.internal:8000/infer`——compose 已为两个容器配置 `host-gateway`，容器内经宿主端口映射访问
+  - 推理服务在**另一台机器**：填 `http://<推理机IP>:8000/infer`
 - VLM 终判配置（可选）：
 
 ```
@@ -91,27 +107,21 @@ VLM_ENVELOPE=true            # 公司网关包装格式；标准 OpenAI 填 fals
 
 ```bash
 cd deploy
-docker compose up -d --build     # 首次或代码更新后（一次拉起推理服务+主程序+测试页面）
-docker compose ps                # 确认三个容器都在运行
+docker compose pull              # 拉取 ghcr.io 预构建镜像
+docker compose up -d
+docker compose ps                # 确认两个容器都在运行
 docker compose logs -f           # 跟日志（Ctrl+C 退出不影响运行）
 ```
 
-启动后先在推理服务的管理平台（`SERVER_URL`）确认两个引擎已加载成功，再验证：
+启动前先确认推理服务（独立部署的 `xclabel-deploy-cpu`）已运行且两个引擎已加载，再验证容器内可达：
 
 ```bash
-# 容器内直接打推理服务（验证服务名互通）
+# 容器内经宿主机访问推理服务（验证 host.docker.internal 通路）
 docker compose exec outlet-detect uv run --no-sync python -c \
-  "import requests; r=requests.post('http://xclabel-deploy-cpu:8000/infer', json={'engine_id':'river/20261030_132330','image':''}, timeout=5); print(r.status_code)"
+  "import requests; r=requests.post('http://host.docker.internal:8000/infer', json={'engine_id':'river/20261030_132330','image':''}, timeout=5); print(r.status_code)"
 ```
 
 测试页面：浏览器打开 `http://<服务器IP>:8090`，上传照片或点选样本库即可看到分割/漂浮物/排污结果与标注图。
-
-### 推理服务分开部署（可选）
-
-推理服务想独立 compose 管理或放在另一台机器时：
-
-- **同机独立 compose**：给 `outlet-detect` / `test-page` 加 `extra_hosts: ["host.docker.internal:host-gateway"]`，`.env` 填 `INFER_ENDPOINT=http://host.docker.internal:8000/infer`（经宿主机端口映射访问）；或让两个 compose 共用一个外部 network（`docker network create infer-net`，两边 `networks` 都挂它，仍可用容器名互访）
-- **另一台机器**：`.env` 填 `INFER_ENDPOINT=http://<推理机IP>:8000/infer`，无需改 compose
 
 > **安全提示**：测试页面无鉴权，生产环境请用防火墙/安全组把 8090 限制在内网或运维网段。
 > 不需要样本库时可删掉 compose 里 test-page 的 `../images:/app/images:ro` 挂载行（页面仍支持上传照片测试）。
@@ -134,11 +144,11 @@ docker compose down                    # 停止全部
 推送 `v*` 标签触发 GitHub Actions：pytest → 构建 → 容器冒烟（接口全不可达时验证容错降级）→ 发布到 ghcr.io：
 
 ```bash
-git tag v0.2.2 && git push origin v0.2.2
-# 产出 ghcr.io/liuli01/outlet-detect:0.2.2 / :0.2 / :latest
+git tag v0.2.4 && git push origin v0.2.4
+# 产出 ghcr.io/liuli01/outlet-detect:0.2.4 / :0.2 / :latest
 ```
 
-生产侧固定版本：`docker compose pull` 前把 compose 里的 `:latest` 改为 `:0.2.2` 等具体版本更稳妥。
+生产侧固定版本：`docker compose pull` 前把 compose 里的 `:latest` 改为 `:0.2.4` 等具体版本更稳妥。
 
 ### 本地开发（uv）
 
