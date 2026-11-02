@@ -76,7 +76,6 @@ def main():
 
     vlm = None
     if args.vlm:
-        import os
         from dotenv import load_dotenv
         from outlet_detect.vlm_judge import VLMJudge
         load_dotenv()
