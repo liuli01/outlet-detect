@@ -21,6 +21,11 @@ class _NoRefAligner:
         return AlignResult(False, None, 0.0, False)
 
 
+def _split_csv(s):
+    """逗号分隔字符串 → 去空白的列表，如 "a,b" → ["a","b"]；空串 → []。"""
+    return [x.strip() for x in s.split(",") if x.strip()]
+
+
 def _env(key):
     v = os.environ.get(key)
     if not v:
@@ -66,7 +71,9 @@ def build_pipelines():
         else:
             created = auto_register(
                 codes, capture_fn, download_fn,
-                float_engine_id=os.environ.get("FLOAT_ENGINE_ID", ""))
+                float_engine_id=os.environ.get("FLOAT_ENGINE_ID", ""),
+                ignore_classes=_split_csv(os.environ.get(
+                    "FLOAT_IGNORE_CLASSES", "aeration")))
             if created:
                 log.info("自动接入 %d 路: %s", len(created), created)
 

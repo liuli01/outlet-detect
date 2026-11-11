@@ -101,6 +101,43 @@ def test_auto_register_via_camera_list_url(tmp_path, monkeypatch):
     assert Path("data/reference/camA.jpg").exists()  # cwd 已是 tmp_path
 
 
+def test_auto_register_default_ignores_aeration(tmp_path, monkeypatch):
+    """FLOAT_IGNORE_CLASSES 未设置时默认排除 aeration（曝气泡沫）。"""
+    import numpy as np
+    monkeypatch.setattr("outlet_detect.config.CONFIG_DIR", tmp_path / "cameras")
+    monkeypatch.setenv("CAMERA_LIST_URL", "http://platform/api/cameraindexcode")
+    monkeypatch.setenv("FLOAT_ENGINE_ID", "floating/1")
+    monkeypatch.delenv("FLOAT_IGNORE_CLASSES", raising=False)
+    monkeypatch.setattr("outlet_detect.hik_adapter.get_index_code_list",
+                        lambda url: ["camB"])
+    monkeypatch.setattr("outlet_detect.hik_adapter.make_capture_fn",
+                        lambda *a: lambda body: "http://x/p.jpg")
+    monkeypatch.setattr("outlet_detect.hik_adapter.make_download_fn",
+                        lambda *a, **k: lambda url: np.full((60, 80, 3), 128,
+                                                            dtype=np.uint8))
+    pipes = build_pipelines()
+    assert "camB" in pipes
+    assert pipes["camB"].float_detector.ignore_classes == {"aeration"}
+
+
+def test_float_ignore_classes_env_override(tmp_path, monkeypatch):
+    """FLOAT_IGNORE_CLASSES 环境变量可覆盖默认排除列表。"""
+    import numpy as np
+    monkeypatch.setattr("outlet_detect.config.CONFIG_DIR", tmp_path / "cameras")
+    monkeypatch.setenv("CAMERA_LIST_URL", "http://platform/api/cameraindexcode")
+    monkeypatch.setenv("FLOAT_ENGINE_ID", "floating/1")
+    monkeypatch.setenv("FLOAT_IGNORE_CLASSES", "aeration,foam")
+    monkeypatch.setattr("outlet_detect.hik_adapter.get_index_code_list",
+                        lambda url: ["camC"])
+    monkeypatch.setattr("outlet_detect.hik_adapter.make_capture_fn",
+                        lambda *a: lambda body: "http://x/p.jpg")
+    monkeypatch.setattr("outlet_detect.hik_adapter.make_download_fn",
+                        lambda *a, **k: lambda url: np.full((60, 80, 3), 128,
+                                                            dtype=np.uint8))
+    pipes = build_pipelines()
+    assert pipes["camC"].float_detector.ignore_classes == {"aeration", "foam"}
+
+
 def test_camera_list_failure_keeps_existing(tmp_path, monkeypatch):
     """清单接口挂掉不影响已有标定摄像头。"""
     import json

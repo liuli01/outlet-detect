@@ -173,6 +173,8 @@ vertical-align:-2px;margin-right:8px}
         <input name="float_engine" type="text" value="__ENGINE__" style="width:250px"></div>
       <div class="field"><label>漂浮物置信度</label>
         <input name="float_conf" type="text" value="0.3" style="width:80px"></div>
+      <div class="field"><label>屏蔽类别（逗号分隔）</label>
+        <input name="ignore_classes" type="text" value="aeration" style="width:180px"></div>
     </div>
     <input type="hidden" name="sample_path" value="">
     <p class="submit"><button type="submit" id="go">开始检测</button></p>
@@ -221,8 +223,9 @@ def make_segmenter():
     return HttpWaterSegmenter()
 
 
-def make_detector(engine_id, confidence):
-    return HttpFloatDetector(engine_id=engine_id, confidence=confidence)
+def make_detector(engine_id, confidence, ignore_classes=()):
+    return HttpFloatDetector(engine_id=engine_id, confidence=confidence,
+                             ignore_classes=ignore_classes)
 
 
 def _imread(p: Path):
@@ -329,7 +332,8 @@ def _errbox(msg: str) -> str:
 async def test(image: UploadFile | None = File(None), sample_path: str = Form(""),
                outfall_x: int = Form(0), outfall_y: int = Form(0),
                float_engine: str = Form(""),  # 主页输入框已预填默认引擎；留空=关闭
-               float_conf: float = Form(0.3)):
+               float_conf: float = Form(0.3),
+               ignore_classes: str = Form("aeration")):
     # 帧来源：上传文件 或 样本库
     src_desc = "上传照片（复制5帧，波动=0）"
     if sample_path.strip():
@@ -356,12 +360,15 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
                                     f"{html.escape(str(e))}"), status_code=502)
     water_pct = mask.sum() / 255 / mask.size * 100
 
-    # 2) 漂浮物：只计水面范围内检出
+    # 2) 漂浮物：只计水面范围内检出；ignore_classes 在展示层过滤（便于看到被屏蔽的检出）
+    ignore_set = {x.strip() for x in ignore_classes.split(",") if x.strip()}
     dets_all, dets, float_err = [], [], ""
     if float_engine.strip():
         try:
             dets_all = make_detector(float_engine.strip(), float_conf).detect(img)
-            dets = filter_to_water(dets_all, mask)
+            # 先按类别屏蔽，再按水面过滤——与线上两级过滤一致
+            dets = [d for d in dets_all if d.class_name not in ignore_set]
+            dets = filter_to_water(dets, mask)
         except Exception as e:
             float_err = str(e)
 
@@ -384,15 +391,22 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
     ann[mask > 0] = (ann[mask > 0] * 0.7 + np.array([0, 255, 0]) * 0.3).astype(np.uint8)
 
     kept = {id(d) for d in dets}
-    rows = "".join(
-        f"<tr class='{'keep' if id(d) in kept else 'drop'}'>"
-        f"<td>{'✔ 保留' if id(d) in kept else '✘ 岸上过滤'}</td>"
-        f"<td>{html.escape(d.class_name)}</td><td>{d.confidence:.2f}</td>"
-        f"<td>{tuple(int(x) for x in d.bbox)}</td></tr>" for d in dets_all)
+    def _row(d):
+        if id(d) in kept:
+            tag, cls = "✔ 保留", "keep"
+        elif d.class_name in ignore_set:
+            tag, cls = "⊘ 类别屏蔽", "drop"
+        else:
+            tag, cls = "✘ 岸上过滤", "drop"
+        return (f"<tr class='{cls}'>"
+                f"<td>{tag}</td>"
+                f"<td>{html.escape(d.class_name)}</td><td>{d.confidence:.2f}</td>"
+                f"<td>{tuple(int(x) for x in d.bbox)}</td></tr>")
+    rows = "".join(_row(d) for d in dets_all)
     float_rows = rows or "<tr><td colspan=4 class='empty'>无检出</td></tr>"
     float_block = (f"<p class='errbox'>漂浮物检测异常：{html.escape(float_err)}</p>"
                    if float_err else
-                   f"<table><tr><th>水面过滤</th><th>类别</th><th>置信度</th>"
+                   f"<table><tr><th>判定</th><th>类别</th><th>置信度</th>"
                    f"<th>bbox</th></tr>{float_rows}</table>")
     verdict_cn = {"normal": "正常", "gray": "灰色（线上送 CNN/VLM 终判）",
                   "suspect": "疑似排污"}.get(v, v)
@@ -408,8 +422,9 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
     else:
         float_cn, fcls = "无漂浮物", "ok"
     # 结果为 HTML 片段：主页 fetch 后注入右侧 #result 面板，样式由主页提供
+    ignore_hint = f"（屏蔽：{', '.join(sorted(ignore_set))}）" if ignore_set else ""
     return f"""<div class="card"><h3>检测结果</h3>
-<div class="meta">帧来源：{html.escape(src_desc)} ｜ 排口点 {point}</div>
+<div class="meta">帧来源：{html.escape(src_desc)} ｜ 排口点 {point}{ignore_hint}</div>
 <div class="stats">
   <div class="stat"><div class="k">排污判定</div><div class="v"><span class="pill {vcls}">{verdict_cn}</span></div></div>
   <div class="stat"><div class="k">漂浮物判定</div><div class="v"><span class="pill {fcls}">{float_cn}</span></div></div>
@@ -420,7 +435,7 @@ async def test(image: UploadFile | None = File(None), sample_path: str = Form(""
   <div class="stat"><div class="k">颜色偏离</div><div class="v">{feats['color_dev']:.2f}</div></div>
 </div></div>
 
-<div class="card"><h3>漂浮物（水面范围内 {len(dets)} / 总检出 {len(dets_all)}）</h3>
+<div class="card"><h3>漂浮物（有效 {len(dets)} / 总检出 {len(dets_all)}）</h3>
 {float_block}
 </div>
 

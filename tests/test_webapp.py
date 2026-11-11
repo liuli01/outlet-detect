@@ -51,6 +51,15 @@ class _FakeDet:
         return [FloatDetection("bottle", 0.88, (100, 120, 160, 180))]  # 中心在下半幅水面
 
 
+class _FakeDetWithAeration:
+    """返回 bottle + aeration，bottle 中心在水面（下半幅），aeration 也在水面。"""
+    def detect(self, frame):
+        return [
+            FloatDetection("bottle", 0.88, (100, 120, 160, 180)),
+            FloatDetection("aeration", 0.95, (50, 130, 90, 170)),
+        ]
+
+
 def test_seg_service_down_returns_502(client, monkeypatch, jpg_bytes):
     class BadSeg:
         def segment(self, frame):
@@ -106,3 +115,20 @@ def test_test_with_sample_path(client, monkeypatch, sample_tree):
     assert r.status_code == 200
     assert "样本组 g1（5 帧）" in r.text  # 真实5连帧而非复制
     assert "检测结果" in r.text
+
+
+def test_ignore_classes_shown_as_filtered(client, monkeypatch, jpg_bytes):
+    """aeration 检出在结果表显示"⊘ 类别屏蔽"，不计入有效漂浮物。"""
+    monkeypatch.setattr(webapp, "make_segmenter", lambda: FakeSeg())
+    monkeypatch.setattr(webapp, "make_detector",
+                        lambda e, c: _FakeDetWithAeration())
+    r = client.post("/test",
+                    files={"image": ("a.jpg", jpg_bytes, "image/jpeg")},
+                    data={"float_engine": "floating/test",
+                          "ignore_classes": "aeration"})
+    assert r.status_code == 200
+    assert "✔ 保留" in r.text         # bottle 保留
+    assert "⊘ 类别屏蔽" in r.text      # aeration 被屏蔽
+    assert "屏蔽：aeration" in r.text  # meta 行显示屏蔽列表
+    # aeration 不计入有效漂浮物数（bottle 1 个有效 / 共 2 个检出）
+    assert "有效 1 / 总检出 2" in r.text

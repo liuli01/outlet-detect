@@ -23,6 +23,7 @@ FLOAT_CONF = float(sys.argv[1]) if len(sys.argv) > 1 else 0.3
 ERODE_PX = 25
 SEG_CONF = 0.25
 OUT_DIR = "data/float_check"
+IGNORE_CLASSES = {"aeration"}  # 与线上一致：曝气泡沫不参与告警
 
 
 def imread_cn(path):
@@ -36,7 +37,8 @@ def imwrite_cn(path, img):
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     seg = HttpWaterSegmenter(erode_px=ERODE_PX, confidence_threshold=SEG_CONF)
-    det = HttpFloatDetector(engine_id=FLOAT_ENGINE, confidence=FLOAT_CONF)
+    det = HttpFloatDetector(engine_id=FLOAT_ENGINE, confidence=FLOAT_CONF,
+                            ignore_classes=IGNORE_CLASSES)
 
     for label in ("有漂浮物", "无漂浮物"):
         print(f"\n=== {label} ===")

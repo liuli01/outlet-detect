@@ -14,10 +14,12 @@ log = logging.getLogger(__name__)
 
 
 def auto_register(codes, capture_fn, download_fn, ref_dir="data/reference",
-                  float_engine_id="", float_confidence=0.3):
+                  float_engine_id="", float_confidence=0.3,
+                  ignore_classes=None):
     """对清单里还没有标定文件的摄像头自动建档，返回新建的 camera_id 列表。
 
     codes: 平台 indexCode 全量列表；capture_fn(body)->picUrl；download_fn(url)->BGR。
+    ignore_classes: 漂浮物检测要排除的类别（如 ["aeration"] 曝气泡沫）。
     """
     existing = set(list_camera_ids())
     created = []
@@ -35,7 +37,8 @@ def auto_register(codes, capture_fn, download_fn, ref_dir="data/reference",
                 reference_frame=ref_path,
                 hik_body={"cameraIndexCode": code},
                 float_engine_id=float_engine_id,
-                float_confidence=float_confidence))
+                float_confidence=float_confidence,
+                ignore_classes=ignore_classes or []))
             created.append(code)
             log.info("自动接入摄像头 %s（参照帧 %s，排口点=水面质心）", code, ref_path)
         except Exception as e:

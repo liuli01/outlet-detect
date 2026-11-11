@@ -27,6 +27,17 @@ def test_auto_register_creates_config_with_centroid_mode(cam_dir):
     assert (cam_dir / "ref" / "camA.jpg").exists()    # 参照帧已落盘
 
 
+def test_auto_register_passes_ignore_classes(cam_dir):
+    """自动建档时 ignore_classes 写入配置，用于排除曝气泡沫等误报类别。"""
+    created = auto_register(["camA"], lambda body: "http://x/pic.jpg",
+                            lambda url: _frame(), ref_dir=str(cam_dir / "ref"),
+                            float_engine_id="floating/1",
+                            ignore_classes=["aeration"])
+    assert created == ["camA"]
+    cfg = load_camera_config("camA")
+    assert cfg.ignore_classes == ["aeration"]
+
+
 def test_auto_register_skips_existing(cam_dir):
     save_camera_config(CameraConfig(camera_id="camA",
                                     hik_body={"cameraIndexCode": "camA"}))
